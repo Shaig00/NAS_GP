@@ -1,0 +1,11 @@
+pandas==2.2.3
+numpy==1.26.4
+matplotlib==3.8.0
+sklearn==1.6.1
+permetrics==2.0.0
+torch==2.0.1
+dask==2024.7.1
+pyarrow==14.0.1
+autogluon
+dragon
+simple_colors
