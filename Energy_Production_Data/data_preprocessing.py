@@ -254,7 +254,7 @@ class Data_Preprocessing():
         #Convert columns to dtype float32: 
         for col in energy_prices_eu_frame.columns:
             energy_prices_eu_frame[col]=energy_prices_eu_frame[col].astype(np.float32)
-        energy_prices_eu_frame=energy_prices_eu_frame.resample('h').sum()
+        energy_prices_eu_frame=energy_prices_eu_frame.resample('h').mean()
 
         #Set the start of the train dataset:
         datetime_indices=pd.DatetimeIndex(['2023-01-01 00:00:00'])
