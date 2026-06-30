@@ -18,6 +18,7 @@ from datetime import timedelta
 from permetrics import RegressionMetric
 import torch
 from torch import nn
+import torchbnn as bnn
 import os
 import argparse
 from torch.optim import lr_scheduler
@@ -1285,7 +1286,8 @@ class Custom_Torch_Model(nn.Module):
                  channels_ratio = 1,
                  fix_subsets = True,
                  operation = 'add', 
-                 leaves_operation = 'concat'):
+                 leaves_operation = 'concat',
+                 merge_mode = 'linear'):
         
         super(Custom_Torch_Model,self).__init__()
 
@@ -1387,13 +1389,20 @@ class Custom_Torch_Model(nn.Module):
         self.path_proba_modules=torch.nn.ModuleList(self.path_proba_modules)
         self.ts_tree_modules=torch.nn.ModuleList(self.ts_tree_modules)
         
-        if self.prediction_projections==True:
+        self.merge_mode = merge_mode
+        if self.merge_mode == 'bnn':
+            self.output_leaf_projection = bnn.BayesLinear(prior_mu=0,
+                                                          prior_sigma=0.1,
+                                                          in_features=(self.num_leaves*self.max_features),
+                                                          out_features=output_channels)
+
+        else:
             #To add Revin for output projection layers:
             self.output_leaf_projection = nn.Linear((self.num_leaves*self.max_features 
-                                                     if self.leaves_operation=='concat' 
-                                                     else self.max_features), output_channels)
-            
-            # self.output_channel_projection=nn.Linear(input_channels, output_channels) # for chain linear version
+                                                        if self.leaves_operation=='concat' 
+                                                        else self.max_features), output_channels, bias=False)
+        
+        if self.prediction_projections==True:
             self.pred_len_projection=nn.Linear(seq_len, pred_len)
             
             if not self.subset_fixed: # add ifelse shared
@@ -1440,9 +1449,9 @@ class Custom_Torch_Model(nn.Module):
                         latent_x_subset = ts_module(previous_level_outputs[tree_depth_idx-1][idx_parent_node])
 
 
-                    nr_nodes_all_previous_levels = np.sum(2**np.arange(0,tree_depth_idx+1))
-                    if self.skip_connections[nr_nodes_all_previous_levels+ts_module_idx-1]!=None:
-                        latent_x_subset=latent_x_subset+node_outputs[self.skip_connections[nr_nodes_all_previous_levels+ts_module_idx-1]]
+                    # nr_nodes_all_previous_levels = np.sum(2**np.arange(0,tree_depth_idx))
+                    # if self.skip_connections[nr_nodes_all_previous_levels+ts_module_idx-1]!=None:
+                    #     latent_x_subset=latent_x_subset+node_outputs[self.skip_connections[nr_nodes_all_previous_levels+ts_module_idx-1]]
                     
 
                 else: # depth being 0
@@ -1493,19 +1502,26 @@ class Custom_Torch_Model(nn.Module):
         # Merge tree leaves with specified leaves operation:
 
         # print('\nNumber of Leaf Nodes: ',len(tree_outputs))
-        if self.leaves_operation == 'concat':
-            tree_outputs=torch.concat(tree_outputs,axis=-1) 
-        elif self.leaves_operation == 'add': #need be fixed
-            tree_outputs=torch.concat(tree_outputs,axis=-1)
-            tree_outputs=torch.sum(tree_outputs, axis=-1)
-        elif self.leaves_operation == 'avg': # need fixing
-            tree_outputs=torch.concat(tree_outputs,axis=-1)
-            tree_outputs=torch.mean(tree_outputs, axis=-1)
+        if self.merge_mode == 'bnn':    # if bnn is merging mode then all other leaves operations become obsolete., they are bypassed.
+             tree_outputs=torch.concat(tree_outputs,axis=-1) 
+             tree_outputs=self.output_leaf_projection(tree_outputs)
+            
+        else:   # if merge mode is not bnn, then we apply the specified leaves operation:
+            if self.leaves_operation == 'concat':
+                tree_outputs=torch.concat(tree_outputs,axis=-1) 
+                tree_outputs=self.output_leaf_projection(tree_outputs)
+            elif self.leaves_operation == 'add': 
+                tree_outputs=torch.stack(tree_outputs,axis=1)
+                tree_outputs=torch.sum(tree_outputs, axis=1)
+            elif self.leaves_operation == 'avg': 
+                tree_outputs=torch.stack(tree_outputs,axis=1)
+                tree_outputs=torch.mean(tree_outputs, axis=1)
+
+        
 
         # PREDICTION LAYER
         if self.prediction_projections==True:
-            output_channels=self.output_leaf_projection(tree_outputs)
-            output_timesteps=self.pred_len_projection(output_channels.permute(0,2,1))
+            output_timesteps=self.pred_len_projection(tree_outputs.permute(0,2,1))
             output=output_timesteps.permute(0,2,1)
         else:
             output=tree_outputs
@@ -1551,6 +1567,9 @@ def environment_step(sampled_architecture,**kwargs):
     
     keep_running_sampled_model=True
     criterion=nn.MSELoss()
+
+    # kl_loss  = bnn.BKLLoss(reduction='mean', last_layer_only=True)
+    
     #while keep_running_sampled_model==True:
     #    try:
     nr_inputs=kwargs['special_parameters']['nr_inputs']
@@ -1671,7 +1690,7 @@ def environment_step(sampled_architecture,**kwargs):
 def train_NAS_model(NAS_model,optimizer_NAS_model,checkpoints,
                    device,patience,epochs,
                    train_data,criterion,use_amp,
-                   walk_forward_validation,validation_data=None):
+                   walk_forward_validation,kl_criterion=None,validation_data=None):
     
     #1. Train the model: ####################################################################################
     iter_count = 0
@@ -1726,8 +1745,13 @@ def train_NAS_model(NAS_model,optimizer_NAS_model,checkpoints,
             if not batch_x.is_contiguous():
                 batch_x = batch_x.contiguous()
 
-            
-            loss = criterion(outputs, batch_y)
+            # adjust kl weight based on number of batches, so that the kl loss has a similar magnitude as the mse loss, and does not get overshadowed by it or vice versa. 
+            # This is important to ensure that the kl loss can effectively regularize the model and prevent overfitting, while still allowing the mse loss to drive the model towards accurate predictions.
+            # kl_weight = 1/len(train_data) 
+            # loss = criterion(outputs, batch_y) + kl_weight * (kl_criterion(NAS_model) if kl_criterion is not None else 0.0)
+
+
+            loss = criterion(outputs, batch_y)  
             #Save the loss relevant for early stopping before adding the L1 and L2 penalties:
             #in the case of the latter, the loss would always keep on decreasing due to lower the magnitude
             #of the trainable variables, thus exclude them from early stopping!

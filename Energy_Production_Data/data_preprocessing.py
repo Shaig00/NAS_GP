@@ -257,7 +257,7 @@ class Data_Preprocessing():
         energy_prices_eu_frame=energy_prices_eu_frame.resample('h').mean()
 
         #Set the start of the train dataset:
-        datetime_indices=pd.DatetimeIndex(['2023-01-01 00:00:00'])
+        datetime_indices=pd.DatetimeIndex(['2024-01-10 00:00:00'])
         energy_prices_eu_frame=energy_prices_eu_frame[(energy_prices_eu_frame.index >= datetime_indices[0])]
         self.set_train_data_energy_prices(train_frame=energy_prices_eu_frame)
 
@@ -412,7 +412,7 @@ class Data_Preprocessing():
             len_denominator=len(current_subset) - seq_len - pred_len + 1
             norm_index = index_list / len_denominator
             
-            inputs_for_dataloader.append([seq_x, seq_y,seq_x_mark,seq_y_mark,norm_index])
+            inputs_for_dataloader.append([seq_x, seq_y,seq_x_mark,seq_y_mark,norm_index]) # this is added after ? does not make sense
             
         #Save in dataloader:
         current_dataloader=torch.utils.data.DataLoader(inputs_for_dataloader,batch_size=batch_size,shuffle=False)

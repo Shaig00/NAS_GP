@@ -105,21 +105,23 @@ class NAS_Benchmarking():
 
 
         self.nr_timesteps=[48,96,192]
-        self.nr_datapoints=[9984,11500,13956]
-        self.nr_splits=[20,19,17]
+        self.nr_datapoints=[9984,11500,13264]
+        self.nr_splits=[20,19,16]
 
         self.nr_datapoints_train=[1904,2000,2192]
         self.nr_datapoints_test=[404,500,692]
 
         self.split_indices={48:np.arange(4,21,1).tolist(),
                     96:np.arange(3,20,1).tolist(),
-                    192:np.arange(1,18,1).tolist()}
+                    192:np.arange(1,17,1).tolist()}
 
-        self.frame_names=['EU_Total_Load_Time_Series_',
-                    'EU_Energy_Time_Series_']
+        self.frame_names=['EU_Energy_Prices_Time_Series_',
+                          'EU_Energy_Time_Series_']
+                        #   'EU_Total_Load_Time_Series_']
 
-        self.dataloader_names=['EU_Total_Load_Dataloader_torch',
+        self.dataloader_names=['EU_Energy_Prices_Dataloader_torch',
                         'Energy_Data_Dataloader_torch']
+                        # 'EU_Total_Load_Dataloader_torch']
 
         self.time_series_models_dict={ 'DLinear':DLinear,
                                         'PatchTST':PatchTST,
@@ -357,8 +359,7 @@ class NAS_Benchmarking():
             for seq_len in self.split_indices.keys():
 
                 #Loop through both time series types:
-                ts_frames=['EU_Total_Load_Time_Series_','EU_Energy_Time_Series_']
-                
+                ts_frames=['EU_Energy_Prices_Time_Series_', 'EU_Energy_Time_Series_'] #,'EU_Total_Load_Time_Series_']
                 for ts_frame in ts_frames:
                 
                     #Import relevant sequence-time series_
