@@ -105,8 +105,8 @@ class NAS_Benchmarking():
 
 
         self.nr_timesteps=[48,96,192]
-        self.nr_datapoints=[9984,11500,13264]
-        self.nr_splits=[20,19,16]
+        self.nr_datapoints=[9984,11500,13956]
+        self.nr_splits=[20,19,17]
 
         self.nr_datapoints_train=[1904,2000,2192]
         self.nr_datapoints_test=[404,500,692]
@@ -348,12 +348,19 @@ class NAS_Benchmarking():
                                                     192:{'Results':{},
                                                     'Training_Testing_Time':None}}
 
-            nas_results_dict['TL_Total_Load']={48:{'Results':{},
-                                                'Training_Testing_Time':None},
-                                                96:{'Results':{},
-                                                'Training_Testing_Time':None},
-                                                192:{'Results':{},
-                                                'Training_Testing_Time':None}}
+            # nas_results_dict['TL_Total_Load']={48:{'Results':{},
+            #                                     'Training_Testing_Time':None},
+            #                                     96:{'Results':{},
+            #                                     'Training_Testing_Time':None},
+            #                                     192:{'Results':{},
+            #                                     'Training_Testing_Time':None}}
+
+            nas_results_dict['NASTrain_Energy_Prices']={48:{'Results':{},
+                                                    'Training_Testing_Time':None},
+                                                    96:{'Results':{},
+                                                    'Training_Testing_Time':None},
+                                                    192:{'Results':{},
+                                                    'Training_Testing_Time':None}}                                    
 
 
             for seq_len in self.split_indices.keys():
@@ -485,7 +492,9 @@ class NAS_Benchmarking():
                                                                     'True_Values':true_test_outputs}
                             
                         else:
-                            nas_results_dict['TL_Total_Load'][seq_len]['Results']['Train_Test'+str(test_idx+1)]={'Avg_Predictions':prediction_outputs,
+                            # nas_results_dict['TL_Total_Load'][seq_len]['Results']['Train_Test'+str(test_idx+1)]={'Avg_Predictions':prediction_outputs,
+                            #                                         'True_Values':true_test_outputs}
+                            nas_results_dict['NASTrain_Energy_Prices_Data'][seq_len]['Results']['Train_Test'+str(test_idx+1)]={'Avg_Predictions':prediction_outputs,
                                                                     'True_Values':true_test_outputs}
                             
                     
@@ -495,8 +504,10 @@ class NAS_Benchmarking():
                         nas_results_dict['NASTrain_Energy_Data'][seq_len]['Training_Testing_Time']=total_training_testing_time_current_seq_len
                         nas_results_dict['NASTrain_Energy_Data'][seq_len]['Reduced_Training_Testing_Time']=reduced_total_training_testing_time_current_seq_len
                     else:
-                        nas_results_dict['TL_Total_Load'][seq_len]['Training_Testing_Time']=total_training_testing_time_current_seq_len
-                        nas_results_dict['TL_Total_Load'][seq_len]['Reduced_Training_Testing_Time']=reduced_total_training_testing_time_current_seq_len
+                        # nas_results_dict['TL_Total_Load'][seq_len]['Training_Testing_Time']=total_training_testing_time_current_seq_len
+                        # nas_results_dict['TL_Total_Load'][seq_len]['Reduced_Training_Testing_Time']=reduced_total_training_testing_time_current_seq_len
+                        nas_results_dict['NASTrain_Energy_Prices_Data'][seq_len]['Training_Testing_Time']=total_training_testing_time_current_seq_len
+                        nas_results_dict['NASTrain_Energy_Prices_Data'][seq_len]['Reduced_Training_Testing_Time']=reduced_total_training_testing_time_current_seq_len
                     print('\n\n')
 
             with open(str(parent_dir)+'/Results_Evaluation/AutoGluonTS_NAS_Res_RMSE_'+str(nr_run)+'.pkl','wb') as f:
@@ -509,7 +520,13 @@ class NAS_Benchmarking():
                                                                         'Training_Testing_Time':None},
                                                                     192:{'Results':{},
                                                                         'Training_Testing_Time':None}},
-                                            'TL_Total_Load':{48:{'Results':{},
+                                            # 'TL_Total_Load':{48:{'Results':{},
+                                            #                     'Training_Testing_Time':None},
+                                            #                 96:{'Results':{},
+                                            #                     'Training_Testing_Time':None},
+                                            #                 192:{'Results':{},
+                                            #                     'Training_Testing_Time':None}},
+                            'NASTrain_Energy_Prices_Data':{48:{'Results':{},
                                                                 'Training_Testing_Time':None},
                                                             96:{'Results':{},
                                                                 'Training_Testing_Time':None},
@@ -606,7 +623,9 @@ class NAS_Benchmarking():
             #################################################################################################
 
             
-            dataloader_name='EU_Total_Load_Dataloader_torch_'
+            # dataloader_name='EU_Total_Load_Dataloader_torch_'
+            dataloader_name='EU_Energy_Prices_Dataloader_torch_'
+
             with open(str(parent_dir)+dataloader_name+str(seq_len)+'_Train.pkl','rb') as f:
                 current_dataloader=pickle.load(f)
 
@@ -636,12 +655,19 @@ class NAS_Benchmarking():
                                                     192:{'Results':{},
                                                     'Training_Testing_Time':None}}
             
-            nas_results_dict['TL_Total_Load']={48:{'Results':{},
+            # nas_results_dict['TL_Total_Load']={48:{'Results':{},
+            #                                         'Training_Testing_Time':None},
+            #                                         96:{'Results':{},
+            #                                         'Training_Testing_Time':None},
+            #                                         192:{'Results':{},
+            #                                         'Training_Testing_Time':None}}
+            
+            nas_results_dict['NASTrain_Energy_Prices']={48:{'Results':{},
                                                     'Training_Testing_Time':None},
                                                     96:{'Results':{},
                                                     'Training_Testing_Time':None},
                                                     192:{'Results':{},
-                                                    'Training_Testing_Time':None}}
+                                                    'Training_Testing_Time':None}}   
 
             reverse_rescale=False
             
@@ -677,7 +703,8 @@ class NAS_Benchmarking():
                     if 'Energy_Data_Dataloader_torch' in dataloader_name:
                         nas_results_dict['NASTrain_Energy_Data'][nr_timesteps]['Training_Testing_Time']=avg_tr_test_time
                     else:
-                        nas_results_dict['TL_Total_Load'][nr_timesteps]['Training_Testing_Time']=avg_tr_test_time
+                        # nas_results_dict['TL_Total_Load'][nr_timesteps]['Training_Testing_Time']=avg_tr_test_time
+                        nas_results_dict['NASTrain_Energy_Prices'][nr_timesteps]['Training_Testing_Time']=avg_tr_test_time
 
                     for subset_idx in range(0,len(self.split_indices[nr_timesteps])):
                         subset_true_values=current_subset_predictions[1][subset_idx]
@@ -687,7 +714,9 @@ class NAS_Benchmarking():
                             nas_results_dict['NASTrain_Energy_Data'][nr_timesteps]['Results']['Train_Test'+str(subset_idx+1)]={'Avg_Predictions':subset_predictions,
                                                                     'True_Values':subset_true_values}
                         else:
-                            nas_results_dict['TL_Total_Load'][nr_timesteps]['Results']['Train_Test'+str(subset_idx+1)]={'Avg_Predictions':subset_predictions,
+                            # nas_results_dict['TL_Total_Load'][nr_timesteps]['Results']['Train_Test'+str(subset_idx+1)]={'Avg_Predictions':subset_predictions,
+                            #                                         'True_Values':subset_true_values}
+                            nas_results_dict['NASTrain_Energy_Prices'][nr_timesteps]['Results']['Train_Test'+str(subset_idx+1)]={'Avg_Predictions':subset_predictions,
                                                                     'True_Values':subset_true_values}
 
 
@@ -711,7 +740,13 @@ class NAS_Benchmarking():
                                                                         'Training_Testing_Time':None},
                                                                     192:{'Results':{},
                                                                         'Training_Testing_Time':None}},
-                                            'TL_Total_Load':{48:{'Results':{},
+                                            # 'TL_Total_Load':{48:{'Results':{},
+                                            #                     'Training_Testing_Time':None},
+                                            #                 96:{'Results':{},
+                                            #                     'Training_Testing_Time':None},
+                                            #                 192:{'Results':{},
+                                            #                     'Training_Testing_Time':None}}},
+                                            'NASTrain_Energy_Prices_Data':{48:{'Results':{},
                                                                 'Training_Testing_Time':None},
                                                             96:{'Results':{},
                                                                 'Training_Testing_Time':None},

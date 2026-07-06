@@ -86,7 +86,6 @@ def visualize_eu_energy(eu_df_path):
     plt.plot(eu_df['Germany Fossil Gas [MW]'])
     plt.plot(eu_df['Spain Fossil Gas [MW]'])
     plt.plot(eu_df['Romania Fossil Gas [MW]'])
-    plt.plot(eu_df['Finland Fossil Gas [MW]'])
 
     plt.figtext(0.252,0.8,'Validation\n   Set 1',color= 'darkgray',fontsize=14)
     plt.figtext(0.29,0.8,'Validation\n   Set 2',color= 'darkgray',fontsize=14)
@@ -104,6 +103,7 @@ def visualize_eu_energy(eu_df_path):
     plt.figtext(0.75,0.8,'Test\n Set 12',color= 'darkgray',fontsize=14)
     plt.figtext(0.785,0.8,'Test\n Set 13',color= 'darkgray',fontsize=14)
     plt.figtext(0.825,0.8,'Test\n Set 14',color= 'darkgray',fontsize=14)
+    plt.figtext(0.86,0.8,'Test\n Set 15',color= 'darkgray',fontsize=14)
 
 
     plt.axvline(x = eu_df[eu_df['Subset']=='Train_Set'].index[-1], linestyle='dashed',color = 'black')
@@ -123,10 +123,11 @@ def visualize_eu_energy(eu_df_path):
     plt.axvline(x = eu_df[eu_df['Subset']=='Test_Set14'].index[-1], linestyle='dashed',color = 'black')
     plt.axvline(x = eu_df[eu_df['Subset']=='Test_Set15'].index[-1], linestyle='dashed',color = 'black')
     plt.axvline(x = eu_df[eu_df['Subset']=='Test_Set16'].index[-1], linestyle='dashed',color = 'black')
+    plt.axvline(x = eu_df[eu_df['Subset']=='Test_Set17'].index[-1], linestyle='dashed',color = 'black')
 
     plt.axhline(y=78000,xmin = round(eu_df[eu_df['Subset']=='Train_Set'].shape[0]/eu_df.shape[0],3)+0.01,
                 xmax = eu_df[eu_df['Subset'].isin(['Train_Set','Test_Set1','Test_Set2','Test_Set3','Test_Set4','Test_Set5','Test_Set6','Test_Set7','Test_Set8',
-                                                'Test_Set9','Test_Set10','Test_Set11','Test_Set12','Test_Set13','Test_Set14','Test_Set15','Test_Set16'])].shape[0]/eu_df.shape[0]-0.015,
+                                                'Test_Set9','Test_Set10','Test_Set11','Test_Set12','Test_Set13','Test_Set14','Test_Set15','Test_Set16','Test_Set17'])].shape[0]/eu_df.shape[0]-0.015,
                 linestyle=':',color = 'darkgray')
 
     #Set x and y lim limits:
@@ -172,7 +173,7 @@ def visualize_eu_energy_prices(eu_df_path):
     plt.figtext(0.75,0.8,'Test\n Set 12',color= 'darkgray',fontsize=14)
     plt.figtext(0.785,0.8,'Test\n Set 13',color= 'darkgray',fontsize=14)
     plt.figtext(0.825,0.8,'Test\n Set 14',color= 'darkgray',fontsize=14)
-
+    plt.figtext(0.86,0.8,'Test\n Set 15',color= 'darkgray',fontsize=14)
 
     plt.axvline(x = eu_df[eu_df['Subset']=='Train_Set'].index[-1], linestyle='dashed',color = 'black')
     plt.axvline(x = eu_df[eu_df['Subset']=='Test_Set1'].index[-1], linestyle='dashed',color = 'black')
@@ -191,11 +192,12 @@ def visualize_eu_energy_prices(eu_df_path):
     plt.axvline(x = eu_df[eu_df['Subset']=='Test_Set14'].index[-1], linestyle='dashed',color = 'black')
     plt.axvline(x = eu_df[eu_df['Subset']=='Test_Set15'].index[-1], linestyle='dashed',color = 'black')
     plt.axvline(x = eu_df[eu_df['Subset']=='Test_Set16'].index[-1], linestyle='dashed',color = 'black')
+    plt.axvline(x = eu_df[eu_df['Subset']=='Test_Set17'].index[-1], linestyle='dashed',color = 'black')
 
 
     plt.axhline(y=78000,xmin = round(eu_df[eu_df['Subset']=='Train_Set'].shape[0]/eu_df.shape[0],3)+0.01,
                 xmax = eu_df[eu_df['Subset'].isin(['Train_Set','Test_Set1','Test_Set2','Test_Set3','Test_Set4','Test_Set5','Test_Set6','Test_Set7','Test_Set8',
-                                                'Test_Set9','Test_Set10','Test_Set11','Test_Set12','Test_Set13','Test_Set14','Test_Set15','Test_Set16'])].shape[0]/eu_df.shape[0]-0.015,
+                                                'Test_Set9','Test_Set10','Test_Set11','Test_Set12','Test_Set13','Test_Set14','Test_Set15','Test_Set16','Test_Set17'])].shape[0]/eu_df.shape[0]-0.015,
                 linestyle=':',color = 'darkgray')
 
     #Set x and y lim limits:
