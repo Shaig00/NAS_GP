@@ -1,5 +1,9 @@
 import sys
 sys.path.append("..")
+from pathlib import Path
+
+# Parent of notebook current working directory
+parent_dir = Path.cwd().parent
 
 from simple_colors  import *
 import warnings
@@ -1277,6 +1281,8 @@ class Custom_Torch_Model(nn.Module):
                  dropout_nodes,
                  #forecast_sequence_difference,
                  d_model_nodes=None,
+                #  n_heads_nodes=None,
+                #  self_attention_type_nodes=None,
                  kernel_size_nodes=None,
                  patch_len_nodes=None,
                  stride_nodes=None,
@@ -1613,8 +1619,8 @@ def environment_step(sampled_architecture,**kwargs):
                                         #forecast_sequence_difference=sampled_architecture['forecast_sequence_difference'],
                                         prediction_projections=sampled_architecture['prediction_projections'],
                                         d_model_nodes=sampled_architecture['d_model_nodes'],
-                                        n_heads_nodes=sampled_architecture['n_heads_nodes'],
-                                        self_attention_type_nodes=sampled_architecture['self_attention_type_nodes'],
+                                        # n_heads_nodes=sampled_architecture['n_heads_nodes'],
+                                        # self_attention_type_nodes=sampled_architecture['self_attention_type_nodes'],
                                         patch_len_nodes=sampled_architecture['patch_len_nodes'],
                                         stride_nodes=sampled_architecture['stride_nodes'],
                                         train_pe_nodes=sampled_architecture['train_pe_nodes'],
@@ -1627,15 +1633,16 @@ def environment_step(sampled_architecture,**kwargs):
         
         NAS_model.to(device)
         
-        nas_model_params=[]
-        for node in NAS_model.node_components:
-            nas_model_params.extend(list(node.parameters()))
-        try:
-            nas_model_params.extend(list(NAS_model.output_channel_projection.parameters()))
-            nas_model_params.extend(list(NAS_model.pred_len_projection.parameters()))
-        except:
-            "no_projections_exception"
-        optimizer_NAS_model = torch.optim.Adam(nas_model_params, lr=0.001)
+        # nas_model_params=[]
+        # for node in NAS_model.node_components:
+        #     nas_model_params.extend(list(node.parameters()))
+        # try:
+        #     nas_model_params.extend(list(NAS_model.output_channel_projection.parameters()))
+        #     nas_model_params.extend(list(NAS_model.pred_len_projection.parameters()))
+        # except:
+        #     "no_projections_exception"
+
+        optimizer_NAS_model = torch.optim.Adam(NAS_model.parameters(), lr=0.001)
         
         #nas_model_params=get_NAS_model_params(NAS_model=NAS_model,regularization=False)
         #optimizer_NAS_model=get_optimizer(NAS_model_params=nas_model_params,opt_name=sampled_architecture['optimizer'],lr=sampled_architecture['lr'])
@@ -2857,7 +2864,7 @@ def compute_nas_edit_distance(first_sampled_cell,second_sampled_cell,
 
     #print('Matrix before matching: \n',nas_edit_distance_matrix)
 
-    for i in range(np.min(nas_edit_distance_matrix.shape[0], nas_edit_distance_matrix[1])):
+    for i in range(np.min(nas_edit_distance_matrix.shape)):
         min_row,min_col=np.where(nas_edit_distance_matrix==np.min(nas_edit_distance_matrix))
         match_nas_edit_distance=nas_edit_distance_matrix[min_row[0],min_col[0]]
         nas_edit_distance_matrix[min_row[0],:]=+np.inf

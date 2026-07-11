@@ -115,12 +115,13 @@ class NAS_Benchmarking():
                     96:np.arange(3,20,1).tolist(),
                     192:np.arange(1,17,1).tolist()}
 
-        self.frame_names=['EU_Energy_Prices_Time_Series_',
-                          'EU_Energy_Time_Series_']
+        self.frame_names=['EU_Energy_Prices_Time_Series_']
+                        #   ,
+                        #   'EU_Energy_Time_Series_']
                         #   'EU_Total_Load_Time_Series_']
 
-        self.dataloader_names=['EU_Energy_Prices_Dataloader_torch',
-                        'Energy_Data_Dataloader_torch']
+        self.dataloader_names=['EU_Energy_Prices_Dataloader_torch']
+                        # 'Energy_Data_Dataloader_torch']
                         # 'EU_Total_Load_Dataloader_torch']
 
         self.time_series_models_dict={ 'DLinear':DLinear,
@@ -227,9 +228,9 @@ class NAS_Benchmarking():
 
     def run_pretrained_forecasters(self):
         #Make 10 runs with pretrained baselines:
-        gpt4ts_args=create_args(current_model='GPT4TS')
+        gpt4ts_args=create_args(current_model='GPT4TS', use_gpu=True)
 
-        device=_acquire_device(use_gpu=True)
+        device=_acquire_device(gpt4ts_args)
         pretrained_models=["Sundial",
                         'TimeMoe',"TimesFM",
                         "GPT4TS"]
@@ -259,11 +260,11 @@ class NAS_Benchmarking():
                             #Import the datasets based on the number of timesteps to predict:
                             dt=self.dataloader_names[frame_name_idx]
                             dataloader_name=dt+'_'+str(current_nr_timesteps)+'_'+('Transfer_Learn' if dt=='Energy_Data_Dataloader_torch' else 'Train')+'.pkl'
-                            with open(str(parent_dir)+'/Energy_Production_Data/EU_Time_Series/'+dataloader_name,'rb') as f:
+                            with open('Energy_Production_Data/EU_Time_Series/'+dataloader_name,'rb') as f:
                                 current_dataloader=pickle.load(f)
 
                             #Import the datasets based on the number of timesteps to predict:
-                            with open(str(parent_dir)+'/Energy_Production_Data/EU_Time_Series/'+frame_name+str(current_nr_timesteps)+'_'+('Transfer_Learn' if frame_name=='EU_Energy_Time_Series_' else 'Train')+'.pkl','rb') as f:
+                            with open('Energy_Production_Data/EU_Time_Series/'+frame_name+str(current_nr_timesteps)+'_'+('Transfer_Learn' if frame_name=='EU_Energy_Time_Series_' else 'Train')+'.pkl','rb') as f:
                                 current_eu_energy_frame=pickle.load(f)
 
                             dataset_dict[idx]={'df':current_eu_energy_frame,
@@ -285,7 +286,7 @@ class NAS_Benchmarking():
 
                         for univariate_results in all_univariate_forecasting_results:
                             #previous save directory: 'evaluation/Results'
-                            with open(str(parent_dir)+'/Results_Evaluation/'+pretrained_model+'_'+frame_name+str(dataset_dict[univariate_results[0]]['nr_timesteps'])+'_'+str(nr_run)+'.pkl','wb') as f:
+                            with open('Results_Evaluation/'+pretrained_model+'_'+frame_name+str(dataset_dict[univariate_results[0]]['nr_timesteps'])+'_'+str(nr_run)+'.pkl','wb') as f:
                                 pickle.dump(univariate_results[1],f)
 
         #Aggregate the results from the probabilistic baselines:
@@ -296,14 +297,14 @@ class NAS_Benchmarking():
                     
                     nr_run=1
                     #Collect average results from 10 runs:
-                    with open(str(parent_dir)+'/Results_Evaluation/'+current_model+'_'+frame_name+str(current_nr_timesteps)+'_'+str(nr_run)+'.pkl','rb') as f:
+                    with open('Results_Evaluation/'+current_model+'_'+frame_name+str(current_nr_timesteps)+'_'+str(nr_run)+'.pkl','rb') as f:
                             current_model_first_run=pickle.load(f)
 
                     current_model_avg_results=copy.deepcopy(current_model_first_run)
                     
 
                     for current_run in np.arange(2,11):
-                        with open(str(parent_dir)+'/Results_Evaluation/'+current_model+'_'+frame_name+str(current_nr_timesteps)+'_'+str(current_run)+'.pkl','rb') as f:
+                        with open('Results_Evaluation/'+current_model+'_'+frame_name+str(current_nr_timesteps)+'_'+str(current_run)+'.pkl','rb') as f:
                             current_model_current_run=pickle.load(f)
 
                         #Compute average training testing time:
@@ -325,7 +326,7 @@ class NAS_Benchmarking():
                             current_model_avg_results['Results'][tr_test_subset][1]=avg_pred_batches
 
                     #Save current results:
-                    with open(str(parent_dir)+'/Results_Evaluation/'+current_model+'_'+frame_name+str(current_nr_timesteps)+'_Avg_10_Runs.pkl','wb') as f:
+                    with open('Results_Evaluation/'+current_model+'_'+frame_name+str(current_nr_timesteps)+'_Avg_10_Runs.pkl','wb') as f:
                             pickle.dump(current_model_avg_results,f)
 
     def run_autogluon_nas(self):

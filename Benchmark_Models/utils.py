@@ -791,7 +791,13 @@ def create_args(current_model,df=None,use_gpu=None,seq_len=None,pred_len=None,la
                             help='whether to use distilling in encoder, using this argument means not using distilling',
                             default=True)
         parser.add_argument('--modes', type=int, default=32, help='modes to be selected random 64')
+        # GPU
+        parser.add_argument('--use_gpu', type=bool, default=use_gpu, help='use gpu')
+        parser.add_argument('--gpu', type=int, default=0, help='gpu')
+        parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple gpus', default=False)
+        parser.add_argument('--devices', type=str, default='0,1', help='device ids of multile gpus')
         gpt4ts_args = parser.parse_args()
+        args = gpt4ts_args
 
     else:
         parser='None'
