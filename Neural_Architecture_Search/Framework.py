@@ -4,6 +4,8 @@ from pathlib import Path
 
 # Parent of notebook current working directory
 parent_dir = Path.cwd().parent
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '1' 
 
 from simple_colors  import *
 import warnings
@@ -403,7 +405,7 @@ class NAS_Framework(nn.Module):
                                         'epochs':50,
                                         'dataloader_name':dataloader_name,
                                         'use_amp':False,
-                                        'checkpoints':'./checkpoints/',
+                                        'checkpoints':'./Src/checkpoints/',
                                         'train_test_split':'Train_Test1',
                                         'reverse_rescale':reverse_rescale,
                                         'device':self.device,
@@ -468,7 +470,7 @@ class NAS_Framework(nn.Module):
             
             finish_episode(actor_critic_model=actor_critic_model,
                         optimizer_actor_critic=optimizer_actor_critic,
-                        gamma=gamma,rewards_history=adj_rewards_nasdist_history)
+                        gamma=gamma, eps=eps, rewards_history=adj_rewards_nasdist_history)
                         
             #Initialize the embedding of the cell used as the input state from the previous timestep: 
             # set to the embeddding of the best performing cell sampled so far:
@@ -1721,7 +1723,7 @@ def train_NAS_model(NAS_model,optimizer_NAS_model,checkpoints,
         NAS_model.train()
         for i, train_items in enumerate(train_data):    
             #Get train item: #############################################################################
-            batch_x, batch_y=train_items
+            batch_x, batch_y, *_ =train_items
             #Make sure input and output tensors are contiguous:
 
             iter_count += 1
@@ -1829,7 +1831,7 @@ def validate_NAS_model(NAS_model,validation_data,
     
     with torch.no_grad():
         for i, validation_items in enumerate(validation_data):
-            batch_x, batch_y=validation_items
+            batch_x, batch_y, *_ =validation_items
             batch_x = batch_x.to(torch.float32).to(device)
             batch_y = batch_y.to(torch.float32).to(device)
             
@@ -2582,7 +2584,7 @@ class Policy(nn.Module):
         return cell_entropy,action_probs, sampled_architecture,memory_state_environment,torch.stack(embedding_sampled_architecture,axis=1),log_prob_sum,critic_value_function
     
 
-def finish_episode(actor_critic_model,optimizer_actor_critic,gamma,rewards_history):
+def finish_episode(actor_critic_model,optimizer_actor_critic,gamma,eps,rewards_history):
     R=0
     actor_critic_model.rewards.extend(rewards_history)
     saved_actions =actor_critic_model.saved_actions
