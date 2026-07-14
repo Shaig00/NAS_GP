@@ -11,8 +11,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-# Results_Evaluation/
 logs
 __pycache__/
 *.pkl
-
+!Results_Evaluation/**/*.pkl
