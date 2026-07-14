@@ -15,3 +15,4 @@ logs
 __pycache__/
 *.pkl
 !Results_Evaluation/**/*.pkl
+results/
