@@ -397,7 +397,7 @@ class NAS_Framework(nn.Module):
                         [cells_current_episode[5],cells_current_episode[6],cells_current_episode[7],cells_current_episode[8],cells_current_episode[9] ] ]
 
             rewards_cells_history=[]
-            for cells_chunk in cells_chunks:
+            for enum, cells_chunk in enumerate(cells_chunks):
                 futures = client.map(environment_step,cells_chunk,
                                 special_parameters={
                                         'nr_inputs':nr_inputs,
@@ -409,7 +409,8 @@ class NAS_Framework(nn.Module):
                                         'train_test_split':'Train_Test1',
                                         'reverse_rescale':reverse_rescale,
                                         'device':self.device,
-                                        'use_gpu':True})
+                                        'use_gpu':True,
+                                        'tree_idx':int(enum)})
 
                 rewards_cells_history_chunk = client.gather(futures)
                 for chunk_res_idx in range(0,len(rewards_cells_history_chunk)):
@@ -1301,7 +1302,7 @@ class Custom_Torch_Model(nn.Module):
 
         self.tree_depth = int(np.ceil(np.log2(nr_nodes+1)))
         self.num_leaves = 2 ** (self.tree_depth-1)
-
+        self.nr_nodes = nr_nodes
         #Input dimensions=output dimensions, i.e., 
         #number of input timesteps per sequence=number of prediction timesteps
         #number of input channels=number of output channels
@@ -1457,9 +1458,13 @@ class Custom_Torch_Model(nn.Module):
                         latent_x_subset = ts_module(previous_level_outputs[tree_depth_idx-1][idx_parent_node])
 
 
-                    # nr_nodes_all_previous_levels = np.sum(2**np.arange(0,tree_depth_idx))
-                    # if self.skip_connections[nr_nodes_all_previous_levels+ts_module_idx-1]!=None:
-                    #     latent_x_subset=latent_x_subset+node_outputs[self.skip_connections[nr_nodes_all_previous_levels+ts_module_idx-1]]
+                    current_global_idx = 2**tree_depth_idx - 1 + ts_module_idx
+                    skip_connection_idx = self.skip_connections[current_global_idx]
+
+                    if skip_connection_idx is not None:
+                        skip_connection_output = node_outputs[skip_connection_idx]
+                        if skip_connection_output.shape[-1] == latent_x_subset.shape[-1]:
+                            latent_x_subset=latent_x_subset+skip_connection_output
                     
 
                 else: # depth being 0
@@ -1559,6 +1564,25 @@ def get_NAS_model_params(NAS_model,regularization):
             "no_projections_exception"
     return nas_model_params
 
+def get_peak_lr(n_nodes, base_lr=5e-4):
+    if n_nodes == 3:
+        return base_lr           # 5e-4
+    else:  # 7 nodes
+        return base_lr * 0.45    # ~2.25e-4
+
+
+def make_param_groups(model, peak_lr, path_lr_mult=0.35):
+    softmax_params, model_params = list(model.ts_path_proba.parameters()), list(model.ts_tree_modules.parameters())
+    model_params = model_params.extend(list(model.output_leaf_projection.parameters()))
+    if model.prediction_projections:
+        model_params = model_params.extend(list(model.pred_len_projection.parameters()))
+    
+    return [
+        {'params': model_params, 'lr': peak_lr},
+        {'params': softmax_params, 'lr': peak_lr * path_lr_mult},
+    ]
+
+
 #Training & Testing Functions:
 import time
 def ignore_warnings(f):
@@ -1577,7 +1601,7 @@ def environment_step(sampled_architecture,**kwargs):
     criterion=nn.MSELoss()
 
     # kl_loss  = bnn.BKLLoss(reduction='mean', last_layer_only=True)
-    
+    tree_idx=kwargs['special_parameters']['tree_idx']
     #while keep_running_sampled_model==True:
     #    try:
     nr_inputs=kwargs['special_parameters']['nr_inputs']
@@ -1634,18 +1658,11 @@ def environment_step(sampled_architecture,**kwargs):
         
         
         NAS_model.to(device)
-        
-        # nas_model_params=[]
-        # for node in NAS_model.node_components:
-        #     nas_model_params.extend(list(node.parameters()))
-        # try:
-        #     nas_model_params.extend(list(NAS_model.output_channel_projection.parameters()))
-        #     nas_model_params.extend(list(NAS_model.pred_len_projection.parameters()))
-        # except:
-        #     "no_projections_exception"
 
-        optimizer_NAS_model = torch.optim.Adam(NAS_model.parameters(), lr=0.001)
-        
+        # optimizer_NAS_model = torch.optim.Adam(NAS_model.parameters(), lr=0.001)
+        peak_lr = get_peak_lr(n_nodes=sampled_architecture['nr_nodes'], base_lr=5e-4)
+        optimizer_NAS_model = torch.optim.Adam(make_param_groups(NAS_model, peak_lr))
+
         #nas_model_params=get_NAS_model_params(NAS_model=NAS_model,regularization=False)
         #optimizer_NAS_model=get_optimizer(NAS_model_params=nas_model_params,opt_name=sampled_architecture['optimizer'],lr=sampled_architecture['lr'])
         
@@ -1653,9 +1670,9 @@ def environment_step(sampled_architecture,**kwargs):
         #1. Train the model: ####################################################################################
         start_tr_ts_time_first_subset=time.time()
         NAS_model=train_NAS_model(NAS_model=NAS_model,optimizer_NAS_model=optimizer_NAS_model,checkpoints=checkpoints,
-                                device=device,patience=1,epochs=epochs,
+                                device=device,patience=3,epochs=epochs,
                                 train_data=train_data,criterion=criterion,use_amp=use_amp,
-                                walk_forward_validation=True)#,sampled_architecture=sampled_architecture)#callback on train set
+                                tree_idx=tree_idx,walk_forward_validation=True,is_stage2=False)#,sampled_architecture=sampled_architecture)#callback on train set
         #Done with training the model: ##############################################################################
         #2. Validate the model: ############################################################################################
         #Compute the reward:
@@ -1675,9 +1692,9 @@ def environment_step(sampled_architecture,**kwargs):
         validation_data=current_dataloader['Train_Test2']['Test_Set_Loader']
         start_tr_ts_time_second_subset=time.time()
         NAS_model=train_NAS_model(NAS_model=NAS_model,optimizer_NAS_model=optimizer_NAS_model,checkpoints=checkpoints,
-                                device=device,patience=1,epochs=epochs,
+                                device=device,patience=2,epochs=epochs,
                                 train_data=train_data,criterion=criterion,use_amp=use_amp,
-                                walk_forward_validation=True)#,sampled_architecture=sampled_architecture)
+                                tree_idx=tree_idx,walk_forward_validation=True,is_stage2=True)#,sampled_architecture=sampled_architecture)
         
         reward_second_subset=validate_NAS_model(NAS_model=NAS_model,validation_data=validation_data,
                         compute_reward=True,device=device,
@@ -1698,17 +1715,31 @@ def environment_step(sampled_architecture,**kwargs):
 
 def train_NAS_model(NAS_model,optimizer_NAS_model,checkpoints,
                    device,patience,epochs,
-                   train_data,criterion,use_amp,
-                   walk_forward_validation,kl_criterion=None,validation_data=None):
+                   train_data,criterion,use_amp, tree_idx,
+                   walk_forward_validation, is_stage2 = False, 
+                   kl_criterion=None,validation_data=None):
     
     #1. Train the model: ####################################################################################
     iter_count = 0
     
-    path = os.path.join(checkpoints, 'TS_Benchmark_training')
-    #if not os.path.exists(path):
-    #    os.makedirs(path)
+    stage_label = 'stage2' if is_stage2 else 'stage1'
+    path = os.path.join(checkpoints, 'TS_Benchmark_training', f'tree{tree_idx}_{stage_label}')
+    os.makedirs(path, exist_ok=True)
 
     early_stopping = EarlyStopping(patience=patience,delta=0.01,verbose=False)
+
+    steps_per_epoch = len(train_data)
+    warmup_epochs = 0 if is_stage2 else (2 if NAS_model.nr_nodes == 3 else 3)
+    warmup_steps = max(1, steps_per_epoch * warmup_epochs)
+
+    warmup_sched = None 
+    if warmup_epochs > 0:
+        warmup_sched = torch.optim.lr_scheduler.LambdaLR(
+            optimizer_NAS_model, lr_lambda=lambda step: min(1.0, step / warmup_steps)
+        )
+    plateau_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer_NAS_model, mode='min', factor=0.5, patience=1, threshold=1e-4
+    )
 
     #scheduler = lr_scheduler.OneCycleLR(optimizer = optimizer_NAS_model,
     #                                        steps_per_epoch = len(train_data),
@@ -1716,6 +1747,8 @@ def train_NAS_model(NAS_model,optimizer_NAS_model,checkpoints,
     #                                        epochs = epochs,
     #                                        max_lr = 0.001)
     
+    global_step = 0
+
     for epoch in range(0,epochs):
         loss_denom=0
         train_loss=0
@@ -1791,7 +1824,10 @@ def train_NAS_model(NAS_model,optimizer_NAS_model,checkpoints,
                 optimizer_NAS_model.step()
             #End backward Pass: ################################################################################
             
-
+            if warmup_sched is not None and global_step < warmup_steps:
+                warmup_sched.step()
+            
+            global_step += 1
         #Apply Early Stopping Callback: ########################################################################
         #if validation_data!=None:
         #    val_loss=validate_NAS_model(NAS_model=NAS_model,validation_data=validation_data,
@@ -1801,11 +1837,22 @@ def train_NAS_model(NAS_model,optimizer_NAS_model,checkpoints,
         #    early_stopping(torch.mean(val_loss), NAS_model, path)
         #else:
         #train_loss=torch.tensor(train_loss).float()
-        early_stopping(train_loss/loss_denom, NAS_model, path)
+
+
+        avg_train_loss=train_loss/loss_denom
+        train_loss_ema = avg_train_loss if train_loss_ema is None else 0.7*train_loss_ema + 0.3*avg_train_loss
+
+        # check global steps for Plateau scheduler
+        if global_step >= warmup_steps:
+            plateau_sched.step(train_loss_ema)
+
+
+        early_stopping(train_loss_ema, NAS_model, path)
         if early_stopping.early_stop:
             #print("Early stopping")
             break
         #End Train Items: #############################################################################
+
         
         #Potentially adjust the learning rate: ########################################################
         #adjust_learning_rate(optimizer=optimizer_NAS_model, scheduler=scheduler, epoch=epoch + 1,lradj="type3",
@@ -1813,9 +1860,9 @@ def train_NAS_model(NAS_model,optimizer_NAS_model,checkpoints,
         #End adjusting the learning rate: #############################################################
         
         #When applying walk-forward validation, then load model weights from best path
-        #if walk_forward_validation==True:
-        #    best_model_path = path+'/'+'checkpoint.pth'
-        #    NAS_model.load_state_dict(torch.load(best_model_path))
+        if walk_forward_validation==True:
+           best_model_path = path+'/'+'checkpoint.pth'
+           NAS_model.load_state_dict(torch.load(best_model_path))
     #Done with training the model: ##############################################################################
     return NAS_model
 
