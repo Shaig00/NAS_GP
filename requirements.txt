@@ -3,7 +3,7 @@ numpy==1.26.4
 matplotlib==3.8.0
 scikit-learn==1.6.1
 permetrics==2.0.0
-torch==2.0.1
+torch==2.6.0+cu124
 dask==2024.7.1
 pyarrow==20.0.0
 transformers==4.40.1
