@@ -212,14 +212,19 @@ class NAS_Framework(nn.Module):
             #####################################################################################################################################
 
 
-        for skip_idx in range(1,self.search_space['nr_nodes'][-1]):
-            # find depth
-            node_depth = np.floor(np.log2(skip_idx+1))
-            # get all nodes from previous levels
-            self.search_space['node_'+str(skip_idx)+'_skip_connection']=list(np.arange(0,2**int(node_depth)-1,1))
-            self.search_space['node_'+str(skip_idx)+'_skip_connection'].append(None)
-            self.embedding_matrix['node_'+str(skip_idx)+'_skip_connection']=torch.normal(mean=0.0,std=1.0,size=[1,len(self.search_space['node_'+str(skip_idx)+'_skip_connection']),self.embedding_dimension])
-            self.embedding_none_matrix['node_'+str(skip_idx)+'_skip_connection']=self.embedding_matrix['node_'+str(skip_idx)+'_skip_connection'][:,-1,:]
+        for skip_idx in range(0,self.search_space['nr_nodes'][-1]):
+            if skip_idx==0:
+                self.search_space['node_'+str(skip_idx)+'_skip_connection']=[None]
+                self.embedding_matrix['node_'+str(skip_idx)+'_skip_connection']=torch.normal(mean=0.0,std=1.0,size=[1,len(self.search_space['node_'+str(skip_idx)+'_skip_connection']),self.embedding_dimension])
+                self.embedding_none_matrix['node_'+str(skip_idx)+'_skip_connection']=self.embedding_matrix['node_'+str(skip_idx)+'_skip_connection'][:,-1,:]
+            else:
+                # find depth
+                node_depth = np.floor(np.log2(skip_idx+1))
+                # get all nodes from previous levels
+                self.search_space['node_'+str(skip_idx)+'_skip_connection']=list(np.arange(0,2**int(node_depth)-1,1))
+                self.search_space['node_'+str(skip_idx)+'_skip_connection'].append(None)
+                self.embedding_matrix['node_'+str(skip_idx)+'_skip_connection']=torch.normal(mean=0.0,std=1.0,size=[1,len(self.search_space['node_'+str(skip_idx)+'_skip_connection']),self.embedding_dimension])
+                self.embedding_none_matrix['node_'+str(skip_idx)+'_skip_connection']=self.embedding_matrix['node_'+str(skip_idx)+'_skip_connection'][:,-1,:]
 
 
         self.search_space['prediction_projections']=[True, False] 
@@ -397,7 +402,7 @@ class NAS_Framework(nn.Module):
                         [cells_current_episode[5],cells_current_episode[6],cells_current_episode[7],cells_current_episode[8],cells_current_episode[9] ] ]
 
             rewards_cells_history=[]
-            for enum, cells_chunk in enumerate(cells_chunks):
+            for cells_chunk in cells_chunks:
                 futures = client.map(environment_step,cells_chunk,
                                 special_parameters={
                                         'nr_inputs':nr_inputs,
@@ -409,8 +414,7 @@ class NAS_Framework(nn.Module):
                                         'train_test_split':'Train_Test1',
                                         'reverse_rescale':reverse_rescale,
                                         'device':self.device,
-                                        'use_gpu':True,
-                                        'tree_idx':int(enum)})
+                                        'use_gpu':True})
 
                 rewards_cells_history_chunk = client.gather(futures)
                 for chunk_res_idx in range(0,len(rewards_cells_history_chunk)):
@@ -1564,19 +1568,21 @@ def get_NAS_model_params(NAS_model,regularization):
             "no_projections_exception"
     return nas_model_params
 
-def get_peak_lr(n_nodes, base_lr=5e-4):
+def get_peak_lr(n_nodes, base_lr=7e-4):
     if n_nodes == 3:
-        return base_lr           # 5e-4
+        return base_lr           # 1e-3
     else:  # 7 nodes
-        return base_lr * 0.45    # ~2.25e-4
+        return base_lr * 0.5    
 
 
-def make_param_groups(model, peak_lr, path_lr_mult=0.35):
-    softmax_params, model_params = list(model.ts_path_proba.parameters()), list(model.ts_tree_modules.parameters())
-    model_params = model_params.extend(list(model.output_leaf_projection.parameters()))
-    if model.prediction_projections:
-        model_params = model_params.extend(list(model.pred_len_projection.parameters()))
-    
+def make_param_groups(model, peak_lr, path_lr_mult=0.4):
+    softmax_params, model_params = list(model.path_proba_modules.parameters()), list(model.ts_tree_modules.parameters())
+    model_params.extend(list(model.output_leaf_projection.parameters()))
+    if model.prediction_projections == True:
+        try:
+            model_params.extend(list(model.pred_len_projection.parameters()))
+        except:
+            "no_projections_exception"
     return [
         {'params': model_params, 'lr': peak_lr},
         {'params': softmax_params, 'lr': peak_lr * path_lr_mult},
@@ -1601,7 +1607,6 @@ def environment_step(sampled_architecture,**kwargs):
     criterion=nn.MSELoss()
 
     # kl_loss  = bnn.BKLLoss(reduction='mean', last_layer_only=True)
-    tree_idx=kwargs['special_parameters']['tree_idx']
     #while keep_running_sampled_model==True:
     #    try:
     nr_inputs=kwargs['special_parameters']['nr_inputs']
@@ -1660,7 +1665,7 @@ def environment_step(sampled_architecture,**kwargs):
         NAS_model.to(device)
 
         # optimizer_NAS_model = torch.optim.Adam(NAS_model.parameters(), lr=0.001)
-        peak_lr = get_peak_lr(n_nodes=sampled_architecture['nr_nodes'], base_lr=5e-4)
+        peak_lr = get_peak_lr(n_nodes=sampled_architecture['nr_nodes'], base_lr=7e-4)
         optimizer_NAS_model = torch.optim.Adam(make_param_groups(NAS_model, peak_lr))
 
         #nas_model_params=get_NAS_model_params(NAS_model=NAS_model,regularization=False)
@@ -1670,9 +1675,9 @@ def environment_step(sampled_architecture,**kwargs):
         #1. Train the model: ####################################################################################
         start_tr_ts_time_first_subset=time.time()
         NAS_model=train_NAS_model(NAS_model=NAS_model,optimizer_NAS_model=optimizer_NAS_model,checkpoints=checkpoints,
-                                device=device,patience=3,epochs=epochs,
+                                device=device,patience=1,epochs=epochs,
                                 train_data=train_data,criterion=criterion,use_amp=use_amp,
-                                tree_idx=tree_idx,walk_forward_validation=True,is_stage2=False)#,sampled_architecture=sampled_architecture)#callback on train set
+                                walk_forward_validation=True,is_stage2=False)#,sampled_architecture=sampled_architecture)#callback on train set
         #Done with training the model: ##############################################################################
         #2. Validate the model: ############################################################################################
         #Compute the reward:
@@ -1692,9 +1697,9 @@ def environment_step(sampled_architecture,**kwargs):
         validation_data=current_dataloader['Train_Test2']['Test_Set_Loader']
         start_tr_ts_time_second_subset=time.time()
         NAS_model=train_NAS_model(NAS_model=NAS_model,optimizer_NAS_model=optimizer_NAS_model,checkpoints=checkpoints,
-                                device=device,patience=2,epochs=epochs,
+                                device=device,patience=1,epochs=epochs,
                                 train_data=train_data,criterion=criterion,use_amp=use_amp,
-                                tree_idx=tree_idx,walk_forward_validation=True,is_stage2=True)#,sampled_architecture=sampled_architecture)
+                                walk_forward_validation=True,is_stage2=True)#,sampled_architecture=sampled_architecture)
         
         reward_second_subset=validate_NAS_model(NAS_model=NAS_model,validation_data=validation_data,
                         compute_reward=True,device=device,
@@ -1715,7 +1720,7 @@ def environment_step(sampled_architecture,**kwargs):
 
 def train_NAS_model(NAS_model,optimizer_NAS_model,checkpoints,
                    device,patience,epochs,
-                   train_data,criterion,use_amp, tree_idx,
+                   train_data,criterion,use_amp,
                    walk_forward_validation, is_stage2 = False, 
                    kl_criterion=None,validation_data=None):
     
@@ -1723,13 +1728,13 @@ def train_NAS_model(NAS_model,optimizer_NAS_model,checkpoints,
     iter_count = 0
     
     stage_label = 'stage2' if is_stage2 else 'stage1'
-    path = os.path.join(checkpoints, 'TS_Benchmark_training', f'tree{tree_idx}_{stage_label}')
-    os.makedirs(path, exist_ok=True)
+    path = os.path.join(checkpoints, 'TS_Benchmark_training')
+    # os.makedirs(path, exist_ok=True)
 
     early_stopping = EarlyStopping(patience=patience,delta=0.01,verbose=False)
 
     steps_per_epoch = len(train_data)
-    warmup_epochs = 0 if is_stage2 else (2 if NAS_model.nr_nodes == 3 else 3)
+    warmup_epochs = 0 if is_stage2 else 1
     warmup_steps = max(1, steps_per_epoch * warmup_epochs)
 
     warmup_sched = None 
@@ -1738,7 +1743,7 @@ def train_NAS_model(NAS_model,optimizer_NAS_model,checkpoints,
             optimizer_NAS_model, lr_lambda=lambda step: min(1.0, step / warmup_steps)
         )
     plateau_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer_NAS_model, mode='min', factor=0.5, patience=1, threshold=1e-4
+        optimizer_NAS_model, mode='min', factor=0.8, patience=1, threshold=1e-4
     )
 
     #scheduler = lr_scheduler.OneCycleLR(optimizer = optimizer_NAS_model,
@@ -1748,7 +1753,7 @@ def train_NAS_model(NAS_model,optimizer_NAS_model,checkpoints,
     #                                        max_lr = 0.001)
     
     global_step = 0
-
+    train_loss_ema = None
     for epoch in range(0,epochs):
         loss_denom=0
         train_loss=0
@@ -1840,14 +1845,18 @@ def train_NAS_model(NAS_model,optimizer_NAS_model,checkpoints,
 
 
         avg_train_loss=train_loss/loss_denom
-        train_loss_ema = avg_train_loss if train_loss_ema is None else 0.7*train_loss_ema + 0.3*avg_train_loss
+        # if train_loss_ema is None:
+        #     train_loss_ema = avg_train_loss
+        # else:
+        #     train_loss_ema = 0.9*train_loss_ema + 0.1*avg_train_loss
 
         # check global steps for Plateau scheduler
         if global_step >= warmup_steps:
-            plateau_sched.step(train_loss_ema)
+            plateau_sched.step(avg_train_loss)
 
 
-        early_stopping(train_loss_ema, NAS_model, path)
+        early_stopping(avg_train_loss, NAS_model, path)
+        
         if early_stopping.early_stop:
             #print("Early stopping")
             break
@@ -1860,10 +1869,11 @@ def train_NAS_model(NAS_model,optimizer_NAS_model,checkpoints,
         #End adjusting the learning rate: #############################################################
         
         #When applying walk-forward validation, then load model weights from best path
-        if walk_forward_validation==True:
-           best_model_path = path+'/'+'checkpoint.pth'
-           NAS_model.load_state_dict(torch.load(best_model_path))
+        # if walk_forward_validation==True:
+        #    best_model_path = path+f'/{tree_idx}_{stage_label}_checkpoint.pth'
+        #    NAS_model.load_state_dict(torch.load(best_model_path))
     #Done with training the model: ##############################################################################
+    # print(f'Epoch: {epoch}, Train Loss: {avg_train_loss:.6f}, stage: {stage_label}')
     return NAS_model
 
 
@@ -1905,7 +1915,14 @@ def validate_NAS_model(NAS_model,validation_data,
                         true_country=true_batch[:,country_idx]
                         predicted_country=predicted_batch[:,country_idx]
 
-                        results=RegressionMetric(y_true=true_country,y_pred=predicted_country).get_metrics_by_list_names(["RMSE","SMAPE"])
+                        # results=RegressionMetric(y_true=true_country,y_pred=predicted_country).get_metrics_by_list_names(["RMSE","SMAPE"],
+                        #                                                                                                  force_finite=True,
+                        #                                                                                                  finite_value=1e6)
+                        results = RegressionMetric(y_true=true_country, y_pred=predicted_country).get_metrics_by_dict({
+                                                        "RMSE": {"force_finite": True, "finite_value": 1e6},
+                                                        "SMAPE": {"force_finite": True, "finite_value": 1e6},
+                                                    })
+
                         mse_array.append(results['RMSE'])
                         #smape_array.append(results['SMAPE'])
                         
@@ -1930,7 +1947,7 @@ def validate_NAS_model(NAS_model,validation_data,
             reward=1/np.mean(reward) 
         
         #reward=1.0/(np.array(smape_array).mean())
-        
+        # print(reward)
         return reward
     else:
         return validation_loss
