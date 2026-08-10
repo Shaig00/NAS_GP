@@ -1919,8 +1919,8 @@ def validate_NAS_model(NAS_model,validation_data,
                         #                                                                                                  force_finite=True,
                         #                                                                                                  finite_value=1e6)
                         results = RegressionMetric(y_true=true_country, y_pred=predicted_country).get_metrics_by_dict({
-                                                        "RMSE": {"force_finite": True, "finite_value": 1e6},
-                                                        "SMAPE": {"force_finite": True, "finite_value": 1e6},
+                                                        "RMSE": {"force_finite": True, "finite_value": 20},
+                                                        "SMAPE": {"force_finite": True, "finite_value": 20},
                                                     })
 
                         mse_array.append(results['RMSE'])
