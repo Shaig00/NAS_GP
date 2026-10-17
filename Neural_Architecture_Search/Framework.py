@@ -212,19 +212,15 @@ class NAS_Framework(nn.Module):
             #####################################################################################################################################
 
 
-        for skip_idx in range(0,self.search_space['nr_nodes'][-1]):
-            if skip_idx==0:
-                self.search_space['node_'+str(skip_idx)+'_skip_connection']=[None]
-                self.embedding_matrix['node_'+str(skip_idx)+'_skip_connection']=torch.normal(mean=0.0,std=1.0,size=[1,len(self.search_space['node_'+str(skip_idx)+'_skip_connection']),self.embedding_dimension])
-                self.embedding_none_matrix['node_'+str(skip_idx)+'_skip_connection']=self.embedding_matrix['node_'+str(skip_idx)+'_skip_connection'][:,-1,:]
-            else:
-                # find depth
-                node_depth = np.floor(np.log2(skip_idx+1))
-                # get all nodes from previous levels
-                self.search_space['node_'+str(skip_idx)+'_skip_connection']=list(np.arange(0,2**int(node_depth)-1,1))
-                self.search_space['node_'+str(skip_idx)+'_skip_connection'].append(None)
-                self.embedding_matrix['node_'+str(skip_idx)+'_skip_connection']=torch.normal(mean=0.0,std=1.0,size=[1,len(self.search_space['node_'+str(skip_idx)+'_skip_connection']),self.embedding_dimension])
-                self.embedding_none_matrix['node_'+str(skip_idx)+'_skip_connection']=self.embedding_matrix['node_'+str(skip_idx)+'_skip_connection'][:,-1,:]
+        ####### SKIP Connection Ablation #####
+        # for skip_idx in range(1,self.search_space['nr_nodes'][-1]):
+        #     # find depth
+        #     node_depth = np.floor(np.log2(skip_idx+1))
+        #     # get all nodes from previous levels
+        #     self.search_space['node_'+str(skip_idx)+'_skip_connection']=list(np.arange(0,2**int(node_depth)-1,1))
+        #     self.search_space['node_'+str(skip_idx)+'_skip_connection'].append(None)
+        #     self.embedding_matrix['node_'+str(skip_idx)+'_skip_connection']=torch.normal(mean=0.0,std=1.0,size=[1,len(self.search_space['node_'+str(skip_idx)+'_skip_connection']),self.embedding_dimension])
+        #     self.embedding_none_matrix['node_'+str(skip_idx)+'_skip_connection']=self.embedding_matrix['node_'+str(skip_idx)+'_skip_connection'][:,-1,:]
 
 
         self.search_space['prediction_projections']=[True, False] 
@@ -396,30 +392,30 @@ class NAS_Framework(nn.Module):
                     continue    
                                 
             
-            client=Client(n_workers=5)
+            client=Client(n_workers=10, threads_per_worker=1)
             print(black('Dask Client Dashboard Link: ',['bold']),client.dashboard_link)
-            cells_chunks=[[cells_current_episode[0],cells_current_episode[1],cells_current_episode[2],cells_current_episode[3],cells_current_episode[4]],
-                        [cells_current_episode[5],cells_current_episode[6],cells_current_episode[7],cells_current_episode[8],cells_current_episode[9] ] ]
+            cells_chunks=[cells_current_episode[0],cells_current_episode[1],cells_current_episode[2],cells_current_episode[3],cells_current_episode[4],
+                        cells_current_episode[5],cells_current_episode[6],cells_current_episode[7],cells_current_episode[8],cells_current_episode[9] ]
 
             rewards_cells_history=[]
-            for cells_chunk in cells_chunks:
-                futures = client.map(environment_step,cells_chunk,
-                                special_parameters={
-                                        'nr_inputs':nr_inputs,
-                                        'nr_targets':nr_targets,
-                                        'epochs':50,
-                                        'dataloader_name':dataloader_name,
-                                        'use_amp':False,
-                                        'checkpoints':'./Src/checkpoints/',
-                                        'train_test_split':'Train_Test1',
-                                        'reverse_rescale':reverse_rescale,
-                                        'device':self.device,
-                                        'use_gpu':True})
+            # for cells_chunk in cells_chunks:
+            futures = client.map(environment_step,cells_chunks,
+                            special_parameters={
+                                    'nr_inputs':nr_inputs,
+                                    'nr_targets':nr_targets,
+                                    'epochs':50,
+                                    'dataloader_name':dataloader_name,
+                                    'use_amp':False,
+                                    'checkpoints':'./Src/checkpoints/',
+                                    'train_test_split':'Train_Test1',
+                                    'reverse_rescale':reverse_rescale,
+                                    'device':self.device,
+                                    'use_gpu':True})
 
-                rewards_cells_history_chunk = client.gather(futures)
-                for chunk_res_idx in range(0,len(rewards_cells_history_chunk)):
-                    rewards_cells_history.append(rewards_cells_history_chunk[chunk_res_idx])
-                del futures
+            rewards_cells_history_chunk = client.gather(futures)
+            for chunk_res_idx in range(0,len(rewards_cells_history_chunk)):
+                rewards_cells_history.append(rewards_cells_history_chunk[chunk_res_idx])
+            del futures
                 
 
             rewards_history=[rw_cl[0] for rw_cl in rewards_cells_history]
@@ -1284,7 +1280,7 @@ class Custom_Torch_Model(nn.Module):
                  revin_nodes,prediction_projections,
                  activations_nodes,
                  activations_second_nodes,
-                 skip_connections,
+                #  skip_connections,
                  dropout_nodes,
                  #forecast_sequence_difference,
                  d_model_nodes=None,
@@ -1300,7 +1296,9 @@ class Custom_Torch_Model(nn.Module):
                  fix_subsets = True,
                  operation = 'add', 
                  leaves_operation = 'concat',
-                 merge_mode = 'linear'):
+                 merge_mode = 'linear',
+                 gate_temperature=1.0,
+                 routing_mode = 'timestep'):
         
         super(Custom_Torch_Model,self).__init__()
 
@@ -1314,7 +1312,7 @@ class Custom_Torch_Model(nn.Module):
         self.seq_len=seq_len
         self.max_features = int(self.input_channels*channels_ratio)
     
-        self.skip_connections=skip_connections
+        # self.skip_connections=skip_connections
         self.prediction_projections=prediction_projections
 
         self.ts_module_nodes=ts_module_nodes
@@ -1340,6 +1338,9 @@ class Custom_Torch_Model(nn.Module):
 
         # self.node_components=[]
 
+        self.routing_mode = routing_mode
+        self.gate_temperature = float(gate_temperature)
+
         node_idx = 0
         for depth_idx in range(0,self.tree_depth):
             current_level_path_probas=[]
@@ -1348,9 +1349,11 @@ class Custom_Torch_Model(nn.Module):
             for path_proba_idx in range(0,2**depth_idx):
                 #Get path proba modules:
                 if depth_idx<(self.tree_depth-1):
-                    current_level_path_probas.append(nn.Sequential(
-                                                        nn.Linear(self.max_features, 2),
-                                                        torch.nn.Softmax(dim=-1)))
+                    if routing_mode == 'channel':
+                        gate = nn.Parameter(torch.zeros(self.max_features, 2))
+                        current_level_path_probas.append(gate)
+                    else:
+                        current_level_path_probas.append(nn.Linear(self.max_features, 2))
                 
                 if self.ts_module_nodes[node_idx]=="TSMixer":
                     current_level_ts_modules.append(TSMixer_ResBlock(create_args(current_model='TSMixer',
@@ -1394,8 +1397,10 @@ class Custom_Torch_Model(nn.Module):
                                                                     activation=activations_nodes[node_idx],
                                                                     train_pe=(train_pe_nodes['node_'+str(node_idx)] if train_pe_nodes!={} else False))).float())
                 node_idx += 1
-
-            self.path_proba_modules.append(torch.nn.ModuleList(current_level_path_probas))
+            if routing_mode == "channel":
+                self.path_proba_modules.append(torch.nn.ParameterList(current_level_path_probas))
+            else:
+                self.path_proba_modules.append(torch.nn.ModuleList(current_level_path_probas))
             self.ts_tree_modules.append(torch.nn.ModuleList(current_level_ts_modules))
 
         # self.node_components=torch.nn.ModuleList( self.node_components)
@@ -1404,11 +1409,13 @@ class Custom_Torch_Model(nn.Module):
         
         self.merge_mode = merge_mode
         if self.merge_mode == 'bnn':
-            self.output_leaf_projection = bnn.BayesLinear(prior_mu=0,
-                                                          prior_sigma=0.1,
-                                                          in_features=(self.num_leaves*self.max_features),
-                                                          out_features=output_channels)
-
+            # self.output_leaf_projection = bnn.BayesLinear(prior_mu=0,
+            #                                               prior_sigma=0.1,
+            #                                               in_features=(self.num_leaves*self.max_features),
+            #                                               out_features=output_channels)
+            pass
+        elif self.leaves_operation == 'channel':
+            self.output_leaf_projection = nn.Parameter(torch.ones(output_channels, self.num_leaves)/ self.num_leaves)
         else:
             #To add Revin for output projection layers:
             self.output_leaf_projection = nn.Linear((self.num_leaves*self.max_features 
@@ -1436,18 +1443,31 @@ class Custom_Torch_Model(nn.Module):
             previous_level_outputs[tree_depth_idx]=[]
             current_level_ts_modules=self.ts_tree_modules[tree_depth_idx]
 
+            #Each node at the previous level appends TWO entries: its left and its
+            #right routed output.  So the list at level d-1 is indexed by BRANCH,
+            #not by node, and holds 2^d entries -- exactly one per node at level d.
+            #Node i therefore consumes entry i.  Halving the index, as a parent
+            #lookup in a node-indexed tree would, sends both children of a node to
+            #the same branch and orphans the other half of the tree: at depth 1
+            #both nodes would read the root's left branch, and at depth 2 all four
+            #leaves would descend from depth-1 node 0, leaving node 1 outside the
+            #computation graph entirely.
+            if tree_depth_idx > 0:
+                assert len(previous_level_outputs[tree_depth_idx-1]) == len(current_level_ts_modules), (
+                    f'depth {tree_depth_idx}: {len(current_level_ts_modules)} nodes but '
+                    f'{len(previous_level_outputs[tree_depth_idx-1])} parent branches')
+
             for ts_module_idx in range(0,len(current_level_ts_modules)):
                 # Select the current ts module:
                 ts_module=current_level_ts_modules[ts_module_idx]
-                
+
                 # Select the subset of features in the current level:
                 if not self.subset_fixed:
                     selected_features = torch.randperm(self.input_channels)[:self.max_features]
 
-                # Add the information from the parent nodes of the previous level:
+                # Add the information from the parent branch of the previous level:
                 if tree_depth_idx > 0:
-                    idx_parent_node=(ts_module_idx)//2
-
+                    idx_parent_node=ts_module_idx
 
                 if tree_depth_idx>0:
                     if not self.subset_fixed:
@@ -1461,80 +1481,73 @@ class Custom_Torch_Model(nn.Module):
                     else:
                         latent_x_subset = ts_module(previous_level_outputs[tree_depth_idx-1][idx_parent_node])
 
-
-                    current_global_idx = 2**tree_depth_idx - 1 + ts_module_idx
-                    skip_connection_idx = self.skip_connections[current_global_idx]
-
-                    if skip_connection_idx is not None:
-                        skip_connection_output = node_outputs[skip_connection_idx]
-                        if skip_connection_output.shape[-1] == latent_x_subset.shape[-1]:
-                            latent_x_subset=latent_x_subset+skip_connection_output
-                    
-
                 else: # depth being 0
                     x_subset = x[:, :, selected_features]
                     # latent representation
                     latent_x_subset=ts_module(x_subset)
 
-
                 if tree_depth_idx<self.tree_depth-1:#then prepare the softmax node splits for the next level:
-                    #Compute left and right probabilities: the softmax weights can be computed using either the merged latent x subset or the sampled x_subset:
-                    #you would need to check which way leads to higher performance
-                    softmax_proba=self.path_proba_modules[tree_depth_idx][ts_module_idx](latent_x_subset)
-                    left_proba,right_proba=softmax_proba[:,:,0].unsqueeze(-1),softmax_proba[:,:,1].unsqueeze(-1)
+                    gate=self.path_proba_modules[tree_depth_idx][ts_module_idx]
+
+                    if getattr(self, 'routing_mode', 'timestep') == 'channel':
+                        #A free [C, 2] parameter, softmaxed over the branch axis and
+                        #broadcast across batch and time: each channel gets a fixed
+                        #apportionment between the two branches, independent of the
+                        #input.  Unlike the per-timestep gate it cannot be pulled
+                        #toward an even split by averaging over timesteps.
+                        channel_proba=torch.softmax(gate/self.gate_temperature, dim=-1)
+                        left_proba=channel_proba[:,0].view(1,1,-1)
+                        right_proba=channel_proba[:,1].view(1,1,-1)
+                    else:
+                        #Per-timestep routing: the softmax is applied here rather
+                        #than inside the module so the logits can be divided by a
+                        #temperature first.  gate_temperature = 1 recovers the
+                        #original behaviour exactly.
+                        gate_logits=gate(latent_x_subset)
+                        softmax_proba=torch.softmax(gate_logits/self.gate_temperature, dim=-1)
+                        left_proba=softmax_proba[:,:,0].unsqueeze(-1)
+                        right_proba=softmax_proba[:,:,1].unsqueeze(-1)
+
+                    if getattr(self, 'debug_gates', False):
+                        p=(channel_proba[:,0] if getattr(self, 'routing_mode', 'timestep')=='channel'
+                           else softmax_proba[:,:,0])
+                        print(f'  depth {tree_depth_idx} node {ts_module_idx} | '
+                              f'p: min {p.min().item():.3f} max {p.max().item():.3f} '
+                              f'sd {p.std().item():.3f}')
 
                     left_latent_x_subset=left_proba*latent_x_subset
                     previous_level_outputs[tree_depth_idx].append(left_latent_x_subset)
-                    
+
                     right_latent_x_subset=right_proba*latent_x_subset
                     previous_level_outputs[tree_depth_idx].append(right_latent_x_subset)
-                    # print('Length of Outputs for next level: ',len(previous_level_outputs[tree_depth_idx]),'\n')
 
                 else:
                     tree_outputs.append(latent_x_subset)
-                
-                node_outputs.append(latent_x_subset) 
 
-
-            # # ---------------------------- KEEPING THIS SECTION FOR SKIP CONNECTION REMINDER ---------------------
-            # if node_idx==0:
-            #     current_node_output=self.node_components[node_idx](x)
-            #     #check if forecast_sequence_difference==True:
-            #     #if self.forecast_sequence_difference==True:
-            #     #    #save difference to future view from forward pass:
-            #     #    forecast_difference_output=current_node_output
-            #     #    
-            #     #    #add current_node_output to x, and return current_node_output as
-            #     #    current_node_output=x+forecast_difference_output
-            # else:
-            #     current_node_output=self.node_components[node_idx](node_outputs[-1])
-
-            #     if self.skip_connections[node_idx-1]!=None:
-            #         current_node_output=current_node_output+node_outputs[self.skip_connections[node_idx-1]]
-            # node_outputs.append(current_node_output)     
-            # #-------------------------------------------------------------------------------------------------------
-
-
+                node_outputs.append(latent_x_subset)
 
         # Merge tree leaves with specified leaves operation:
+        if self.merge_mode == 'bnn':    # bnn bypasses the leaves operation
+            tree_outputs=torch.concat(tree_outputs,axis=-1)
+            tree_outputs=self.output_leaf_projection(tree_outputs)
 
-        # print('\nNumber of Leaf Nodes: ',len(tree_outputs))
-        if self.merge_mode == 'bnn':    # if bnn is merging mode then all other leaves operations become obsolete., they are bypassed.
-             tree_outputs=torch.concat(tree_outputs,axis=-1) 
-             tree_outputs=self.output_leaf_projection(tree_outputs)
-            
-        else:   # if merge mode is not bnn, then we apply the specified leaves operation:
-            if self.leaves_operation == 'concat':
-                tree_outputs=torch.concat(tree_outputs,axis=-1) 
+        else:
+            if self.leaves_operation == 'channel':
+                #Per-channel leaf mixture: each output channel learns its own
+                #weights over the leaves, using only that channel's value in each
+                #leaf.  C*L parameters rather than C*(L*C), and channel identity is
+                #preserved by construction.
+                tree_outputs=torch.stack(tree_outputs, dim=-1)          # [B, T, C, L]
+                tree_outputs=(tree_outputs*self.output_leaf_projection).sum(dim=-1)
+            elif self.leaves_operation == 'concat':
+                tree_outputs=torch.concat(tree_outputs,axis=-1)
                 tree_outputs=self.output_leaf_projection(tree_outputs)
-            elif self.leaves_operation == 'add': 
+            elif self.leaves_operation == 'add':
                 tree_outputs=torch.stack(tree_outputs,axis=1)
                 tree_outputs=torch.sum(tree_outputs, axis=1)
-            elif self.leaves_operation == 'avg': 
+            elif self.leaves_operation == 'avg':
                 tree_outputs=torch.stack(tree_outputs,axis=1)
                 tree_outputs=torch.mean(tree_outputs, axis=1)
-
-        
 
         # PREDICTION LAYER
         if self.prediction_projections==True:
@@ -1543,9 +1556,7 @@ class Custom_Torch_Model(nn.Module):
         else:
             output=tree_outputs
 
-        
-        return output
-    
+        return output    
 
 
 #---------------------------------------------
@@ -1570,7 +1581,7 @@ def get_NAS_model_params(NAS_model,regularization):
 
 def get_peak_lr(n_nodes, base_lr=7e-4):
     if n_nodes == 3:
-        return base_lr           # 1e-3
+        return base_lr           # 7e-4
     else:  # 7 nodes
         return base_lr * 0.5    
 
@@ -1646,7 +1657,7 @@ def environment_step(sampled_architecture,**kwargs):
                                         revin_nodes=sampled_architecture['revin_nodes'],
                                         dropout_nodes=sampled_architecture['dropout_nodes'],
                                         activations_nodes=sampled_architecture['activations_nodes'],
-                                        skip_connections=sampled_architecture['skip_connections'],
+                                        # skip_connections=sampled_architecture['skip_connections'],
                                         #forecast_sequence_difference=sampled_architecture['forecast_sequence_difference'],
                                         prediction_projections=sampled_architecture['prediction_projections'],
                                         d_model_nodes=sampled_architecture['d_model_nodes'],
@@ -1915,12 +1926,10 @@ def validate_NAS_model(NAS_model,validation_data,
                         true_country=true_batch[:,country_idx]
                         predicted_country=predicted_batch[:,country_idx]
 
-                        # results=RegressionMetric(y_true=true_country,y_pred=predicted_country).get_metrics_by_list_names(["RMSE","SMAPE"],
-                        #                                                                                                  force_finite=True,
-                        #                                                                                                  finite_value=1e6)
+                        # results=RegressionMetric(y_true=true_country,y_pred=predicted_country).get_metrics_by_list_names(["RMSE","SMAPE"])
                         results = RegressionMetric(y_true=true_country, y_pred=predicted_country).get_metrics_by_dict({
-                                                        "RMSE": {"force_finite": True, "finite_value": 20},
-                                                        "SMAPE": {"force_finite": True, "finite_value": 20},
+                                                        "RMSE": {"force_finite": True, "finite_value": 1e6},
+                                                        "SMAPE": {"force_finite": True, "finite_value": 1e6},
                                                     })
 
                         mse_array.append(results['RMSE'])
@@ -1968,7 +1977,7 @@ def random_sampling_model(search_space,embedding_matrix,embedding_none_matrix):
                           'dropout_nodes':[],
                           'activations_nodes':[],
                           'activations_second_nodes':{},
-                          'skip_connections':[],
+                        #   'skip_connections':[],
                           'prediction_projections':None}
     
     
@@ -2001,10 +2010,11 @@ def random_sampling_model(search_space,embedding_matrix,embedding_none_matrix):
                 elif 'dropout' in ss_key:
                     sampled_architecture['dropout_nodes'].append(sampled_cell_component)
                     embedding_sampled_architecture.append(embedding_matrix[ss_key][:,index_sampled_component,:])
-                
-                elif 'skip' in ss_key:
-                    sampled_architecture['skip_connections'].append(sampled_cell_component)    
-                    embedding_sampled_architecture.append(embedding_matrix[ss_key][:,index_sampled_component,:])
+
+                ##### SKIP CONNEC ABLATION
+                # elif 'skip' in ss_key:
+                #     sampled_architecture['skip_connections'].append(sampled_cell_component)    
+                #     embedding_sampled_architecture.append(embedding_matrix[ss_key][:,index_sampled_component,:])
                     
                 elif 'kernel_size' in ss_key:
                     if 'Dnonlinear' in sampled_architecture['ts_module_nodes'][current_node]:
@@ -2376,7 +2386,7 @@ class Policy(nn.Module):
                           'dropout_nodes':[],
                           'activations_nodes':[],
                           'activations_second_nodes':{},
-                          'skip_connections':[],
+                        #   'skip_connections':[],
                           'prediction_projections':None}
         
         
@@ -2439,16 +2449,16 @@ class Policy(nn.Module):
                         
                         sampled_architecture['dropout_nodes'].append(self.search_space_values[cell_component][selected_cell_component])
 
-
-                    elif "skip" in cell_component:
+                    ############## SKIP CONNEC ABLATION ####
+                    # elif "skip" in cell_component:
                         
-                        selected_cell_component,embeddings_cell_component,log_prob_sum=self.forward_pass_single_action_head(cell_component=cell_component,
-                                                                                action_head_idx=action_head_idx,
-                                                                                hidden_state_environment=hidden_state_environment,
-                                                                                embedding_sampled_architecture=embedding_sampled_architecture,
-                                                                                log_prob_sum=log_prob_sum,action_probs=action_probs,cell_entropy=cell_entropy,
-                                                                                embeddings_cell_component=embeddings_cell_component)
-                        sampled_architecture['skip_connections'].append(self.search_space_values[cell_component][selected_cell_component])
+                    #     selected_cell_component,embeddings_cell_component,log_prob_sum=self.forward_pass_single_action_head(cell_component=cell_component,
+                    #                                                             action_head_idx=action_head_idx,
+                    #                                                             hidden_state_environment=hidden_state_environment,
+                    #                                                             embedding_sampled_architecture=embedding_sampled_architecture,
+                    #                                                             log_prob_sum=log_prob_sum,action_probs=action_probs,cell_entropy=cell_entropy,
+                    #                                                             embeddings_cell_component=embeddings_cell_component)
+                    #     sampled_architecture['skip_connections'].append(self.search_space_values[cell_component][selected_cell_component])
                     
                     
                     elif 'd_model' in cell_component:
@@ -2791,12 +2801,14 @@ def compute_nas_edit_distance(first_sampled_cell,second_sampled_cell,
             ts_modules_distance=1.0-int(first_sampled_cell['ts_module_nodes'][first_idx_cell]==second_sampled_cell['ts_module_nodes'][second_idx_cell])
             distance_values_array.append(ts_modules_distance)
 
-            #Potentially move at the end:
-            #6. Distance between skip connections: relevant only from second layer onwards:
-            if (first_idx_cell>0.0 and second_idx_cell>0.0) and (first_idx_cell==second_idx_cell):#meaning add skip dist only for pairs
-                #1-1 and 2-2:
-                skip_connections_distance=1.0-int(first_sampled_cell['skip_connections'][first_idx_cell-1]==second_sampled_cell['skip_connections'][second_idx_cell-1])
-                distance_values_array.append(skip_connections_distance) 
+            ##### SKIP CONNECTION ABLATION
+
+            # #Potentially move at the end:
+            # #6. Distance between skip connections: relevant only from second layer onwards:
+            # if (first_idx_cell>0.0 and second_idx_cell>0.0) and (first_idx_cell==second_idx_cell):#meaning add skip dist only for pairs
+            #     #1-1 and 2-2:
+            #     skip_connections_distance=1.0-int(first_sampled_cell['skip_connections'][first_idx_cell-1]==second_sampled_cell['skip_connections'][second_idx_cell-1])
+            #     distance_values_array.append(skip_connections_distance) 
                 
                 
 

@@ -32,17 +32,46 @@ def _acquire_device(args):
 def _select_optimizer(model,args,current_model):
         if current_model!='Basisformer':
             model_optim = optim.Adam(model.parameters(), lr=args.learning_rate)
+        
         else:
-             para1 = [param for name,param in model.named_parameters() if 'map_MLP' in name]
-             para2 = [param for name,param in model.named_parameters() if 'map_MLP' not in name]
-             # optimizer = AdaBelief(model.parameters(), lr=args.learning_rate, eps=1e-16, betas=(0.9,0.999), weight_decouple = True, rectify = False) 
-             model_optim = AdaBelief([{'params':para1,'lr':5e-3},{'params':para2,'lr':args.learning_rate}], eps=1e-16, betas=(0.9,0.999), weight_decouple = True, rectify = False) 
+            para1 = [param for name,param in model.named_parameters() if 'map_MLP' in name]
+            para2 = [param for name,param in model.named_parameters() if 'map_MLP' not in name]
+            # optimizer = AdaBelief(model.parameters(), lr=args.learning_rate, eps=1e-16, betas=(0.9,0.999), weight_decouple = True, rectify = False) 
+            model_optim = AdaBelief([{'params':para1,'lr':5e-3},{'params':para2,'lr':args.learning_rate}], eps=1e-16, betas=(0.9,0.999), weight_decouple = True, rectify = False) 
             
         return model_optim
 
 def _select_criterion():
         criterion = nn.MSELoss()
         return criterion
+
+
+def get_peak_lr(n_nodes, base_lr=7e-4):
+    if n_nodes == 3:
+        return base_lr           # 7e-4
+    else:  # 7 nodes
+        return base_lr * 0.5    
+
+
+def make_param_groups(model, peak_lr, path_lr_mult=0.4):
+    softmax_params, model_params = list(model.path_proba_modules.parameters()), list(model.ts_tree_modules.parameters())
+    # model_params.extend(list(model.output_leaf_projection.parameters()))
+    proj = model.output_leaf_projection
+    if isinstance(proj, torch.nn.Parameter):
+        model_params.append(proj)
+    else:
+        model_params.extend(list(proj.parameters()))
+        
+    if model.prediction_projections == True:
+        try:
+            model_params.extend(list(model.pred_len_projection.parameters()))
+        except:
+            "no_projections_exception"
+    return [
+        {'params': model_params, 'lr': peak_lr},
+        {'params': softmax_params, 'lr': peak_lr * path_lr_mult},
+    ]
+
 
 def adjust_learning_rate(optimizer, epoch, args):
     # lr = args.learning_rate * (0.2 ** (epoch // 2))
@@ -53,6 +82,7 @@ def adjust_learning_rate(optimizer, epoch, args):
             2: 5e-5, 4: 1e-5, 6: 5e-6, 8: 1e-6, 
             10: 5e-7, 15: 1e-7, 20: 5e-8
         }
+
     if epoch in lr_adjust.keys():
         lr = lr_adjust[epoch]
         for param_group in optimizer.param_groups:
@@ -799,6 +829,97 @@ def create_args(current_model,df=None,use_gpu=None,seq_len=None,pred_len=None,la
         gpt4ts_args = parser.parse_args()
         args = gpt4ts_args
 
+    elif current_model == "NAS_Tree":
+        parser = argparse.ArgumentParser(description='NAS_Tree_point_forecast')
+        # basic config
+        parser.add_argument('--is_training', type=int, default=1, help='status')
+        parser.add_argument('--model_id', type=str, default='test', help='model id')
+        parser.add_argument('--model', type=str, default='NAS_Tree',
+                            help='model name, options: [NAS_Tree]')
+
+        # data loader
+        parser.add_argument('--data', type=str, default='ETTh1', help='dataset type')
+        parser.add_argument('--root_path', type=str, default='./data/ETT/', help='root path of the data file')
+        parser.add_argument('--data_path', type=str, default='ETTh1.csv', help='data file')
+        parser.add_argument('--features', type=str, default='M',
+                            help='forecasting task, options:[M, S, MS]; M:multivariate predict multivariate, S:univariate predict univariate, MS:multivariate predict univariate')
+        parser.add_argument('--target', type=str, default='OT', help='target feature in S or MS task')
+        parser.add_argument('--freq', type=str, default='h',
+                            help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
+        parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
+
+        # forecasting task
+        parser.add_argument('--seq_len', type=int, default=seq_len, help='input sequence length')
+        parser.add_argument('--label_len', type=int, default=label_len, help='start token length')
+        parser.add_argument('--pred_len', type=int, default=pred_len, help='prediction sequence length')
+
+        # optimization
+        parser.add_argument('--num_workers', type=int, default=10, help='data loader num workers')
+        parser.add_argument('--itr', type=int, default=2, help='experiments times')
+        parser.add_argument('--train_epochs', type=int, default=100, help='train epochs')
+        parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
+        parser.add_argument('--patience', type=int, default=3, help='early stopping patience')
+        parser.add_argument('--learning_rate', type=float, default=7e-4, help='optimizer learning rate')
+        parser.add_argument('--des', type=str, default='test', help='exp description')
+        parser.add_argument('--loss', type=str, default='mse', help='loss function')
+        parser.add_argument('--lradj', type=str, default='tree', help='adjust learning rate')
+        parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
+        parser.add_argument('--warmup_epochs', type=int, default=1, help='number of warm up epochs during training')
+
+        # GPU
+        parser.add_argument('--use_gpu', type=bool, default=use_gpu,help='use gpu')
+        parser.add_argument('--gpu', type=int, default=0, help='gpu')
+        parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple gpus', default=False)
+        parser.add_argument('--devices', type=str, default='0,1', help='device ids of multile gpus')
+
+        tree_args = parser.parse_args()
+        args = tree_args
+
+    elif current_model == "NAS_Chain":
+        parser = argparse.ArgumentParser(description='NAS_Chain_point_forecast')
+        # basic config
+        parser.add_argument('--is_training', type=int, default=1, help='status')
+        parser.add_argument('--model_id', type=str, default='test', help='model id')
+        parser.add_argument('--model', type=str, default='NAS_Chain',
+                            help='model name, options: [NAS_Chain]')
+
+        # data loader
+        parser.add_argument('--data', type=str, default='ETTh1', help='dataset type')
+        parser.add_argument('--root_path', type=str, default='./data/ETT/', help='root path of the data file')
+        parser.add_argument('--data_path', type=str, default='ETTh1.csv', help='data file')
+        parser.add_argument('--features', type=str, default='M',
+                            help='forecasting task, options:[M, S, MS]; M:multivariate predict multivariate, S:univariate predict univariate, MS:multivariate predict univariate')
+        parser.add_argument('--target', type=str, default='OT', help='target feature in S or MS task')
+        parser.add_argument('--freq', type=str, default='h',
+                            help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
+        parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
+
+        # forecasting task
+        parser.add_argument('--seq_len', type=int, default=seq_len, help='input sequence length')
+        parser.add_argument('--label_len', type=int, default=label_len, help='start token length')
+        parser.add_argument('--pred_len', type=int, default=pred_len, help='prediction sequence length')
+
+        # optimization
+        parser.add_argument('--num_workers', type=int, default=10, help='data loader num workers')
+        parser.add_argument('--itr', type=int, default=2, help='experiments times')
+        parser.add_argument('--train_epochs', type=int, default=100, help='train epochs')
+        parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
+        parser.add_argument('--patience', type=int, default=3, help='early stopping patience')
+        parser.add_argument('--learning_rate', type=float, default=0.001, help='optimizer learning rate')
+        parser.add_argument('--des', type=str, default='test', help='exp description')
+        parser.add_argument('--loss', type=str, default='mse', help='loss function')
+        parser.add_argument('--lradj', type=str, default='chain', help='adjust learning rate')
+        parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
+        parser.add_argument('--warmup_epochs', type=int, default=1, help='number of warm up epochs during training')
+
+        # GPU
+        parser.add_argument('--use_gpu', type=bool, default=use_gpu,help='use gpu')
+        parser.add_argument('--gpu', type=int, default=0, help='gpu')
+        parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple gpus', default=False)
+        parser.add_argument('--devices', type=str, default='0,1', help='device ids of multile gpus')
+
+        chain_args = parser.parse_args()
+        args = chain_args
     else:
         parser='None'
 

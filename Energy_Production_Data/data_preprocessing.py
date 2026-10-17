@@ -91,14 +91,19 @@ class Data_Preprocessing():
 
         self.train_data_frame=None
         self.transfer_learn_data_frame=None
+        self.exg_data_frame=None
 
     def set_transfer_learn_data(self,transfer_learn_frame):
         self.eu_energy_frame=transfer_learn_frame
         self.transfer_learn_data_frame=transfer_learn_frame
 
-    def set_train_data(self,train_frame):
-        self.eu_total_load_frame=train_frame
-        self.train_data_frame=train_frame
+    # def set_train_data(self,train_frame):
+    #     self.eu_total_load_frame=train_frame
+    #     self.train_data_frame=train_frame
+
+    def set_exg_data(self, exg_frame):
+        self.eu_total_load_frame = exg_frame
+        self.exg_data_frame = exg_frame
 
     def set_train_data_energy_prices(self, train_frame):
         self.eu_energy_prices_frame=train_frame
@@ -160,57 +165,99 @@ class Data_Preprocessing():
         eu_energy_frame=eu_energy_frame[(eu_energy_frame.index>=datetime_index[0])]
         self.set_transfer_learn_data(transfer_learn_frame=eu_energy_frame)
 
-    def merge_train_data(self):
 
+    def merge_exg_data(self):
+ 
         EU_countries=['Austria','Belgium','Bulgaria',
-              'Croatia','Czech_Republic',
-              'Estonia','Finland','France',
+              'Croatia','Czech_Republic', 'Estonia',
+              'Finland','France', 'Germany',
               'Greece','Hungary','Latvia','Lithuania',
-              'Netherlands',
-              'Poland','Portugal','Slovakia','Germany',
-              'Spain','Romania']
-
-        energy_types_keep=['MTU','Actual Total Load']
-
+              'Netherlands', 'Poland','Portugal',
+              'Romania', 'Spain']
+        #NOTE: Slovakia is excluded. Its Day-ahead Total Load Forecast series ends
+        #on 2024-06-30 while its actual load continues, and keeping it truncates
+        #the intersection to 4151 hours. Only its load covariates are missing;
+        #its price channel is unaffected.
+ 
+        energy_types_keep=["MTU","Day-ahead Total Load Forecast"]
+ 
         total_load_eu_dfs=[]
         for current_country in EU_countries:
             #Load electricity total load time series:
             total_load_df=pd.concat([pd.read_csv('../Energy_Production_Data/EU_Time_Series/'+current_country+'_Total_Load_2023.csv',sep=','),
                                     pd.read_csv('../Energy_Production_Data/EU_Time_Series/'+current_country+'_Total_Load_2024.csv',sep=','),
-                                    pd.read_csv('../Energy_Production_Data/EU_Time_Series/'+current_country+'_Total_Load_2025.csv',sep=',').iloc[:11520,:]],axis=0)
-
-            #Format columns:
-            total_load_df.columns=['Time (UTC)','Day-ahead Total Load Forecast','Actual Total Load']
-            total_load_df['MTU']=np.array([dt+' (UTC)' for dt in total_load_df['Time (UTC)'].values])
-            total_load_df=total_load_df.drop(['Time (UTC)', 'Day-ahead Total Load Forecast'],axis=1)
-
+                                    pd.read_csv('../Energy_Production_Data/EU_Time_Series/'+current_country+'_Total_Load_2025.csv',sep=',')],axis=0)
+ 
+            #Format columns and
             #Select a set of time series for the current country:
+            total_load_df.columns=['MTU','Day-ahead Total Load Forecast','Actual Total Load']
             total_load_df=total_load_df[energy_types_keep]
+            #NOTE: the actual load series is dropped on purpose. It is not known at
+            #forecast time, so using it as a covariate would be look-ahead. The
+            #day-ahead forecast is published the previous day and is available.
+ 
             current_dates=total_load_df[["MTU"]]
             total_load_df=total_load_df.drop(["MTU"],axis=1)
-            
+ 
             #Rename columns:
-            renamed_columns=[current_country+" "+col.split(" - ")[0]+" [MW]" for col in total_load_df.columns]
-            total_load_df.columns=renamed_columns
+            total_load_df.columns=[current_country+' Day-ahead Total Load [MW]']
+            total_load_df=total_load_df.apply(pd.to_numeric,errors='coerce')
+ 
             #Change format of dates:
             current_dates=current_dates["MTU"].str.replace(" (UTC)","",regex=False)
             current_dates=[datetime.strptime(date.split(" - ")[-1],'%d.%m.%Y %H:%M') for date in current_dates.values]
             total_load_df.index=np.array(current_dates)
+ 
+            #Resample to hourly BEFORE the concat: ENTSO-E publishes load at 15, 30
+            #or 60 minute MTU depending on the country and the year, so concatenating
+            #raw indices leaves mostly NaN. Mean, not sum, because load is
+            #instantaneous MW rather than a flow.
+            total_load_df=total_load_df.resample('h').mean()
+ 
             total_load_eu_dfs.append(total_load_df)
-
-        #Concat Eu dataframes as well as drop  missing values: 
+ 
+        #Concat Eu dataframes as well as drop missing values:
         total_load_eu_frame=pd.concat(total_load_eu_dfs,axis=1).dropna()
-
-        #Convert columns to dtype float32: 
+ 
+        #Convert columns to dtype float32:
         for col in total_load_eu_frame.columns:
             total_load_eu_frame[col]=total_load_eu_frame[col].astype(np.float32)
-        total_load_eu_frame=total_load_eu_frame.resample('h').sum()
-
+ 
         #Set the start of the train dataset:
-        # datetime_indices=pd.DatetimeIndex(['2023-10-25 00:00:00'])
         datetime_indices=pd.DatetimeIndex(['2024-01-10 00:00:00'])
-        total_load_eu_frame=total_load_eu_frame[(total_load_eu_frame.index>=datetime_indices[0])]
-        self.set_train_data(train_frame=total_load_eu_frame)
+        total_load_eu_frame=total_load_eu_frame[(total_load_eu_frame.index >= datetime_indices[0])]
+ 
+        #Restore a gapless hourly index. The dropna above removes any hour missing
+        #for even one country, which leaves holes around the DST changeover. Both
+        #this frame and the price frame are later sliced by position, so a hole here
+        #shifts every subsequent row relative to the prices and the two stop
+        #referring to the same hours.
+        full_index=pd.date_range(start=total_load_eu_frame.index.min(),
+                                 end=total_load_eu_frame.index.max(),freq='h')
+        n_missing=len(full_index)-total_load_eu_frame.shape[0]
+
+        total_load_eu_frame=total_load_eu_frame.reindex(full_index)
+        #Load is strongly weekly-periodic, so for a multi-hour outage the same hour
+        #one week earlier is a far better estimate than a straight line, which would
+        #flatten the diurnal cycle -- the very signal these covariates carry. The
+        #thirteen hours missing on 2024-10-27 are the DST changeover, absent for all
+        #eighteen countries at once.
+        total_load_eu_frame=total_load_eu_frame.fillna(total_load_eu_frame.shift(168))
+        total_load_eu_frame=total_load_eu_frame.fillna(total_load_eu_frame.shift(-168))
+        #Short residual gaps only:
+        total_load_eu_frame=total_load_eu_frame.interpolate(limit=3,limit_direction='both')
+        total_load_eu_frame=total_load_eu_frame.astype(np.float32)
+
+ 
+        print('Exogenous frame: ',total_load_eu_frame.shape[0],' hours x ',
+              total_load_eu_frame.shape[1],' countries (',
+              total_load_eu_frame.index.min(),' -> ',total_load_eu_frame.index.max(),')')
+        print('Hours filled by interpolation: ',n_missing)
+        if total_load_eu_frame.isna().any().any():
+            print('WARNING: gaps remain after interpolation: ',
+                  int(total_load_eu_frame.isna().sum().sum()))
+ 
+        self.set_exg_data(exg_frame=total_load_eu_frame)
 
 
     def merge_train_data_electricity_prices(self):
@@ -281,7 +328,8 @@ class Data_Preprocessing():
                '2025-04-02 04:00:00', '2025-04-14 23:00:00','2025-04-16 02:00:00', '2025-04-23 06:00:00','2025-04-24 05:00:00']
 
 
-        frames=[self.train_data_frame, self.transfer_learn_data_frame]
+        # frames=[self.train_data_frame, self.exg_data_frame]
+        frames = [self.exg_data_frame]
         
         for frame_idx in range(0,len(frames)):
 
@@ -307,29 +355,30 @@ class Data_Preprocessing():
                 current_frame['Subset']=np.array(subsets)
                 
                 #Filter out rows with 0s:
-                if frame_idx==1:
-                    current_frame=current_frame[(current_frame.index!=drop_indices_transfer_frame[0])&(current_frame.index!=drop_indices_transfer_frame[1])&
-                                                                (current_frame.index!=drop_indices_transfer_frame[2])&(current_frame.index!=drop_indices_transfer_frame[3])&
-                                                                (current_frame.index!=drop_indices_transfer_frame[4])&(current_frame.index!=drop_indices_transfer_frame[5])]
+                # if frame_idx==1:
+                #     current_frame=current_frame[(current_frame.index!=drop_indices_transfer_frame[0])&(current_frame.index!=drop_indices_transfer_frame[1])&
+                #                                                 (current_frame.index!=drop_indices_transfer_frame[2])&(current_frame.index!=drop_indices_transfer_frame[3])&
+                #                                                 (current_frame.index!=drop_indices_transfer_frame[4])&(current_frame.index!=drop_indices_transfer_frame[5])]
                 # elif frame_idx==0 and self.eu_total_load_frame is not None:
                 #     for drop_idx in drop_indices_train_frame:
                 #         current_frame=current_frame[current_frame.index!=drop_idx]
-                else:
-                    pass
+                # else:
+                #     pass
                 
                 #Add a date column:
                 current_frame['date']=current_frame.index
                 
                 #Save the timestep dataframes:
-                if frame_idx==1:
-                    with open('../Energy_Production_Data/EU_Time_Series/EU_Energy_Time_Series_'+str(current_nr_timesteps)+'_Transfer_Learn.pkl','wb') as f:
+                if frame_idx==0:
+                    with open('../Energy_Production_Data/EU_Time_Series/EU_Total_Load_Time_Series_'+str(current_nr_timesteps)+'_Train.pkl','wb') as f:
                         pickle.dump(current_frame,f)
+                    
                 # elif frame_idx==0 and self.eu_total_load_frame is not None:
-                #     with open('../Energy_Production_Data/EU_Time_Series/EU_Total_Load_Time_Series_'+str(current_nr_timesteps)+'_Train.pkl','wb') as f:
+                #     with open('../Energy_Production_Data/EU_Time_Series/EU_Energy_Time_Series_'+str(current_nr_timesteps)+'_Transfer_Learn.pkl','wb') as f:
                 #         pickle.dump(current_frame,f)
-                elif frame_idx==0:# and self.eu_energy_prices_frame is not None:
-                    with open('../Energy_Production_Data/EU_Time_Series/EU_Energy_Prices_Time_Series_'+str(current_nr_timesteps)+'_Train.pkl','wb') as f:
-                        pickle.dump(current_frame,f)
+                # elif frame_idx==0:# and self.eu_energy_prices_frame is not None:
+                #     with open('../Energy_Production_Data/EU_Time_Series/EU_Energy_Prices_Time_Series_'+str(current_nr_timesteps)+'_Train.pkl','wb') as f:
+                #         pickle.dump(current_frame,f)
     
     @ignore_warnings
     def get_timestamp_data(self,df)->pd.DataFrame:
@@ -435,9 +484,10 @@ class Data_Preprocessing():
 
             
             frame_names=[
-                # '../Energy_Production_Data/EU_Time_Series/EU_Total_Load_Time_Series_'+str(seq_len)+'_Train.pkl',
-                        '../Energy_Production_Data/EU_Time_Series/EU_Energy_Time_Series_'+str(seq_len)+'_Transfer_Learn.pkl',
-                        '../Energy_Production_Data/EU_Time_Series/EU_Energy_Prices_Time_Series_'+str(seq_len)+'_Train.pkl']
+                '../Energy_Production_Data/EU_Time_Series/EU_Total_Load_Time_Series_'+str(seq_len)+'_Train.pkl',
+                        # '../Energy_Production_Data/EU_Time_Series/EU_Energy_Time_Series_'+str(seq_len)+'_Transfer_Learn.pkl',
+                        # '../Energy_Production_Data/EU_Time_Series/EU_Energy_Prices_Time_Series_'+str(seq_len)+'_Train.pkl'
+                        ]
             
             dataloaders=[]
 
@@ -491,17 +541,17 @@ class Data_Preprocessing():
                 dataloaders.append(dataloaders_dict)
                 
                 
-            # #at index 0: 'EU_Total_Load_Dataloader_torch_'+str(seq_len)+'.pkl'
-            # with open('../Energy_Production_Data/EU_Time_Series/EU_Total_Load_Dataloader_torch_'+str(seq_len)+'_Train.pkl','wb') as f:
-            #     pickle.dump(dataloaders[0],f)
-
-            #at index 1: 'Energy_Data_Dataloader_torch_'+str(seq_len)+'.pkl'
-            with open('../Energy_Production_Data/EU_Time_Series/Energy_Data_Dataloader_torch_'+str(seq_len)+'_Transfer_Learn.pkl','wb') as f:
+            #at index 0: 'EU_Total_Load_Dataloader_torch_'+str(seq_len)+'.pkl'
+            with open('../Energy_Production_Data/EU_Time_Series/EU_Total_Load_Dataloader_torch_'+str(seq_len)+'_Train.pkl','wb') as f:
                 pickle.dump(dataloaders[0],f)
 
-            #at index 2: 'EU_Energy_Prices_Dataloader_torch_'+str(seq_len)+'.pkl'
-            with open('../Energy_Production_Data/EU_Time_Series/EU_Energy_Prices_Dataloader_torch_'+str(seq_len)+'_Train.pkl','wb') as f:
-                pickle.dump(dataloaders[1],f)
+            # #at index 1: 'Energy_Data_Dataloader_torch_'+str(seq_len)+'.pkl'
+            # with open('../Energy_Production_Data/EU_Time_Series/Energy_Data_Dataloader_torch_'+str(seq_len)+'_Transfer_Learn.pkl','wb') as f:
+            #     pickle.dump(dataloaders[0],f)
+
+            # #at index 2: 'EU_Energy_Prices_Dataloader_torch_'+str(seq_len)+'.pkl'
+            # with open('../Energy_Production_Data/EU_Time_Series/EU_Energy_Prices_Dataloader_torch_'+str(seq_len)+'_Train.pkl','wb') as f:
+            #     pickle.dump(dataloaders[1],f)
 
 
 

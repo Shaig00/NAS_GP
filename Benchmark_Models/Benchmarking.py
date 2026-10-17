@@ -1,4 +1,5 @@
 import sys
+import traceback
 sys.path.append("..")
 from pathlib import Path
 
@@ -25,6 +26,7 @@ import time
 import copy
 import warnings
 from functools import wraps
+from simple_colors import *
 from permetrics import RegressionMetric
 
 from Benchmark_Models.Multivariate_Models import Multivariate_Forecasting
@@ -39,7 +41,7 @@ from Benchmark_Models.time_series_models.MTSMixer.MTSMixer_Model.MTSMixer_Torch 
 from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesPredictor
 import autogluon
 
-#Define the search space for dragon:
+# #Define the search space for dragon:
 from dragon.search_space.bricks_variables import mlp_var,recurrence_2d,recurrence_1d, dropout, identity_var, mlp_const_var, conv_1d, conv_2d, pooling_1d, pooling_2d, attention_1d, attention_2d, norm_1d, norm_2d
 from dragon.search_space.bricks_variables import operations_var, dag_var, node_var
 from dragon.search_space.base_variables import ArrayVar
@@ -111,18 +113,16 @@ class NAS_Benchmarking():
         self.nr_datapoints_train=[1904,2000,2192]
         self.nr_datapoints_test=[404,500,692]
 
-        self.split_indices={48:np.arange(4,21,1).tolist(),
+        self.split_indices={
+                    48:np.arange(4,21,1).tolist(),
                     96:np.arange(3,20,1).tolist(),
-                    192:np.arange(1,17,1).tolist()}
+                    192:np.arange(3,18,1).tolist()}
 
         self.frame_names=['EU_Energy_Prices_Time_Series_']
-                        #   ,
-                        #   'EU_Energy_Time_Series_']
-                        #   'EU_Total_Load_Time_Series_']
+
 
         self.dataloader_names=['EU_Energy_Prices_Dataloader_torch']
-                        # 'Energy_Data_Dataloader_torch']
-                        # 'EU_Total_Load_Dataloader_torch']
+        
 
         self.time_series_models_dict={ 'DLinear':DLinear,
                                         'PatchTST':PatchTST,
@@ -260,11 +260,11 @@ class NAS_Benchmarking():
                             #Import the datasets based on the number of timesteps to predict:
                             dt=self.dataloader_names[frame_name_idx]
                             dataloader_name=dt+'_'+str(current_nr_timesteps)+'_'+('Transfer_Learn' if dt=='Energy_Data_Dataloader_torch' else 'Train')+'.pkl'
-                            with open('Energy_Production_Data/EU_Time_Series/'+dataloader_name,'rb') as f:
+                            with open(str(parent_dir)+'/Energy_Production_Data/EU_Time_Series/'+dataloader_name,'rb') as f:
                                 current_dataloader=pickle.load(f)
 
                             #Import the datasets based on the number of timesteps to predict:
-                            with open('Energy_Production_Data/EU_Time_Series/'+frame_name+str(current_nr_timesteps)+'_'+('Transfer_Learn' if frame_name=='EU_Energy_Time_Series_' else 'Train')+'.pkl','rb') as f:
+                            with open(str(parent_dir)+'/Energy_Production_Data/EU_Time_Series/'+frame_name+str(current_nr_timesteps)+'_'+('Transfer_Learn' if frame_name=='EU_Energy_Time_Series_' else 'Train')+'.pkl','rb') as f:
                                 current_eu_energy_frame=pickle.load(f)
 
                             dataset_dict[idx]={'df':current_eu_energy_frame,
@@ -286,7 +286,7 @@ class NAS_Benchmarking():
 
                         for univariate_results in all_univariate_forecasting_results:
                             #previous save directory: 'evaluation/Results'
-                            with open('Results_Evaluation/'+pretrained_model+'_'+frame_name+str(dataset_dict[univariate_results[0]]['nr_timesteps'])+'_'+str(nr_run)+'.pkl','wb') as f:
+                            with open(str(parent_dir)+'/Results_Evaluation/'+pretrained_model+'_'+frame_name+str(dataset_dict[univariate_results[0]]['nr_timesteps'])+'_'+str(nr_run)+'.pkl','wb') as f:
                                 pickle.dump(univariate_results[1],f)
 
         #Aggregate the results from the probabilistic baselines:
@@ -297,14 +297,14 @@ class NAS_Benchmarking():
                     
                     nr_run=1
                     #Collect average results from 10 runs:
-                    with open('Results_Evaluation/'+current_model+'_'+frame_name+str(current_nr_timesteps)+'_'+str(nr_run)+'.pkl','rb') as f:
+                    with open(str(parent_dir)+'/Results_Evaluation/'+current_model+'_'+frame_name+str(current_nr_timesteps)+'_'+str(nr_run)+'.pkl','rb') as f:
                             current_model_first_run=pickle.load(f)
 
                     current_model_avg_results=copy.deepcopy(current_model_first_run)
                     
 
                     for current_run in np.arange(2,11):
-                        with open('Results_Evaluation/'+current_model+'_'+frame_name+str(current_nr_timesteps)+'_'+str(current_run)+'.pkl','rb') as f:
+                        with open(str(parent_dir)+'/Results_Evaluation/'+current_model+'_'+frame_name+str(current_nr_timesteps)+'_'+str(current_run)+'.pkl','rb') as f:
                             current_model_current_run=pickle.load(f)
 
                         #Compute average training testing time:
@@ -326,7 +326,7 @@ class NAS_Benchmarking():
                             current_model_avg_results['Results'][tr_test_subset][1]=avg_pred_batches
 
                     #Save current results:
-                    with open('Results_Evaluation/'+current_model+'_'+frame_name+str(current_nr_timesteps)+'_Avg_10_Runs.pkl','wb') as f:
+                    with open(str(parent_dir)+'/Results_Evaluation/'+current_model+'_'+frame_name+str(current_nr_timesteps)+'_Avg_10_Runs.pkl','wb') as f:
                             pickle.dump(current_model_avg_results,f)
 
     def run_autogluon_nas(self):
@@ -342,12 +342,12 @@ class NAS_Benchmarking():
         for nr_run in np.arange(1,11):
 
             nas_results_dict={}
-            nas_results_dict['NASTrain_Energy_Data']={48:{'Results':{},
-                                                    'Training_Testing_Time':None},
-                                                    96:{'Results':{},
-                                                    'Training_Testing_Time':None},
-                                                    192:{'Results':{},
-                                                    'Training_Testing_Time':None}}
+            # nas_results_dict['NASTrain_Energy_Data']={48:{'Results':{},
+            #                                         'Training_Testing_Time':None},
+            #                                         96:{'Results':{},
+            #                                         'Training_Testing_Time':None},
+            #                                         192:{'Results':{},
+            #                                         'Training_Testing_Time':None}}
 
             # nas_results_dict['TL_Total_Load']={48:{'Results':{},
             #                                     'Training_Testing_Time':None},
@@ -356,7 +356,7 @@ class NAS_Benchmarking():
             #                                     192:{'Results':{},
             #                                     'Training_Testing_Time':None}}
 
-            nas_results_dict['NASTrain_Energy_Prices']={48:{'Results':{},
+            nas_results_dict['NASTrain_Energy_Prices_Data']={48:{'Results':{},
                                                     'Training_Testing_Time':None},
                                                     96:{'Results':{},
                                                     'Training_Testing_Time':None},
@@ -367,11 +367,11 @@ class NAS_Benchmarking():
             for seq_len in self.split_indices.keys():
 
                 #Loop through both time series types:
-                ts_frames=['EU_Energy_Prices_Time_Series_', 'EU_Energy_Time_Series_'] #,'EU_Total_Load_Time_Series_']
+                ts_frames=['EU_Energy_Prices_Time_Series_']#, 'EU_Energy_Time_Series_'] #,'EU_Total_Load_Time_Series_']
                 for ts_frame in ts_frames:
                 
                     #Import relevant sequence-time series_
-                    with open(str(parent_dir)+"/"+ts_frame+str(seq_len)+'_'+('Transfer_Learn' if ts_frame=='EU_Energy_Time_Series_' else 'Train')+'.pkl','rb') as f:
+                    with open(str(parent_dir)+"/Energy_Production_Data/EU_Time_Series/"+ts_frame+str(seq_len)+'_'+('Transfer_Learn' if ts_frame=='EU_Energy_Time_Series_' else 'Train')+'.pkl','rb') as f:
                         eu_df=pickle.load(f)
 
                     print('Current Time Series Frame: ',ts_frame+str(seq_len)+'_'+('Transfer_Learn' if ts_frame=='EU_Energy_Time_Series_' else 'Train')+'.pkl')
@@ -423,16 +423,16 @@ class NAS_Benchmarking():
                         
                         #Perform NAS with AutoGluonTS:
                         #Create Autogluon predictor:
-                        predictor = TimeSeriesPredictor(prediction_length=seq_len, eval_metric="RMSE",target='target',freq='H')
+                        predictor = TimeSeriesPredictor(prediction_length=seq_len, eval_metric="RMSE",target='target',freq='h')
                         #Fit the predictor for a maximum number of time:
                         predictor.fit(
                             train_validation_data,
-                            time_limit=int((60*60*24*3)/(15*2*3)),#(60*60*24*4)/15,#a maximum of four days for all 15 subsets (
+                            time_limit=int((60*60*24*4)/(15*2*3)),#(60*60*24*4)/15,#a maximum of four days for all 15 subsets (
                             #(keep time similar to NAS using efficient search space as well as to DRAGON NAS)
                             presets='best_quality',#"fast_training",
                             excluded_model_types=["RecursiveTabular","DirectTabular",
                                                 "TemporalFusionTransformer","PatchTST",
-                                                "DeepAR","Chronos","TiDE"],
+                                                "DeepAR","Chronos", "Chronos2","TiDE"],
                             hyperparameter_tune_kwargs=None,
                             num_val_windows=num_val_windows#walk-forward validation
                         )
@@ -469,7 +469,12 @@ class NAS_Benchmarking():
                         training_testing_time=training_testing_time+prediction_time
                         total_training_testing_time_current_seq_len=total_training_testing_time_current_seq_len+training_testing_time
 
-                        nr_models_ensemble=len(list(predictor._trainer.load_model(predictor.model_best).model_to_weight.keys()))
+                        best_model = predictor._trainer.load_model(predictor.model_best)
+
+                        if hasattr(best_model, "model_to_weight"):
+                            nr_models_ensemble = len(best_model.model_to_weight)
+                        else:
+                            nr_models_ensemble = 1
                         reduced_total_training_testing_time_current_seq_len=reduced_total_training_testing_time_current_seq_len+(training_testing_time/nr_models_ensemble)
                         #act as if we could parallelize the models in the ensemble
                         print('Total Training and Fitting Time: ',training_testing_time)
@@ -515,12 +520,13 @@ class NAS_Benchmarking():
                 pickle.dump(nas_results_dict,f)
 
         #Aggregate results from 10 runs:
-        nas_avg_results_dict={'NASTrain_Energy_Data':{48:{'Results':{},
-                                                                        'Training_Testing_Time':None},
-                                                                    96:{'Results':{},
-                                                                        'Training_Testing_Time':None},
-                                                                    192:{'Results':{},
-                                                                        'Training_Testing_Time':None}},
+        nas_avg_results_dict={
+            # 'NASTrain_Energy_Data':{48:{'Results':{},
+            #                                                             'Training_Testing_Time':None},
+            #                                                         96:{'Results':{},
+            #                                                             'Training_Testing_Time':None},
+            #                                                         192:{'Results':{},
+            #                                                             'Training_Testing_Time':None}},
                                             # 'TL_Total_Load':{48:{'Results':{},
                                             #                     'Training_Testing_Time':None},
                                             #                 96:{'Results':{},
@@ -603,21 +609,28 @@ class NAS_Benchmarking():
         batch_size=32
         nr_inputs=19
         for seq_len in self.nr_timesteps:
-            
+            LOSS_SEQ_LEN=int(seq_len)
             #################################################################################################
             def loss_function(args, idx, verbose=False):
-                args = dict(zip(labels, args))
-                seq_len=48
-                model = LoadModel(args, torch.Size([nr_inputs,seq_len,1]))#train_set.__getitem__(0)[0].shape)
-                
-                model.to(device)
-                model = train_model(model, train_loader, verbose=verbose)
-                #aggregated_loss,loss, preds, trues = test_model(model, val_loader[0])[0]
-                aggregated_loss_frist = test_model(model, val_loader[0])[0]
-                aggregated_loss_second = test_model(model, val_loader[1])[0]
-                aggregated_loss=np.mean([aggregated_loss_frist,aggregated_loss_second])
-                
-                print(f"Idx: {idx}, on validation set: RMSE Loss = {aggregated_loss}")#, RMSE = {rmse}")
+                try:
+                    args = dict(zip(labels, args))
+                    seq_len=LOSS_SEQ_LEN
+                    model = LoadModel(args, torch.Size([nr_inputs,seq_len,1]))#train_set.__getitem__(0)[0].shape)
+
+
+                    model.to(device)
+                    model = train_model(model, train_loader, verbose=verbose)
+                    #aggregated_loss,loss, preds, trues = test_model(model, val_loader[0])[0]
+                    aggregated_loss_frist = test_model(model, val_loader[0])[0]
+                    aggregated_loss_second = test_model(model, val_loader[1])[0]
+                    aggregated_loss=np.mean([aggregated_loss_frist,aggregated_loss_second])
+                    
+                    print(f"Idx: {idx}, on validation set: RMSE Loss = {aggregated_loss}")#, RMSE = {rmse}")
+                except Exception as e:
+                    print("\n========== FULL TRACEBACK ==========")
+                    traceback.print_exc()
+                    print("====================================\n")
+                    raise
                 
                 #return loss, model
                 return aggregated_loss, model
@@ -627,7 +640,7 @@ class NAS_Benchmarking():
             # dataloader_name='EU_Total_Load_Dataloader_torch_'
             dataloader_name='EU_Energy_Prices_Dataloader_torch_'
 
-            with open(str(parent_dir)+dataloader_name+str(seq_len)+'_Train.pkl','rb') as f:
+            with open(str(parent_dir)+'/Energy_Production_Data/EU_Time_Series/'+dataloader_name+str(seq_len)+'_Train.pkl','rb') as f:
                 current_dataloader=pickle.load(f)
 
             train_loader=current_dataloader['Train_Test1']['Train_Set_Loader']
@@ -649,12 +662,13 @@ class NAS_Benchmarking():
 
             current_dragon_run='dragon_nr_'+str(nr_run)
             nas_results_dict={}
-            nas_results_dict['NASTrain_Energy_Data']={48:{'Results':{},
-                                                    'Training_Testing_Time':None},
-                                                    96:{'Results':{},
-                                                    'Training_Testing_Time':None},
-                                                    192:{'Results':{},
-                                                    'Training_Testing_Time':None}}
+            # nas_results_dict[
+            #     'NASTrain_Energy_Data']={48:{'Results':{},
+            #                                         'Training_Testing_Time':None},
+            #                                         96:{'Results':{},
+            #                                         'Training_Testing_Time':None},
+            #                                         192:{'Results':{},
+            #                                         'Training_Testing_Time':None}}
             
             # nas_results_dict['TL_Total_Load']={48:{'Results':{},
             #                                         'Training_Testing_Time':None},
@@ -663,7 +677,7 @@ class NAS_Benchmarking():
             #                                         192:{'Results':{},
             #                                         'Training_Testing_Time':None}}
             
-            nas_results_dict['NASTrain_Energy_Prices']={48:{'Results':{},
+            nas_results_dict['NASTrain_Energy_Prices_Data']={48:{'Results':{},
                                                     'Training_Testing_Time':None},
                                                     96:{'Results':{},
                                                     'Training_Testing_Time':None},
@@ -676,7 +690,7 @@ class NAS_Benchmarking():
                 for nr_timesteps in [48,96,192]:
                     client=Client()
                     print(black('Dask Client Dashboard Link: ',['bold']),client.dashboard_link)
-                    dataloader_name=dt+'_'+str(nr_timesteps)+'_'+('Transfer_Learn' if dt=='Energy_Data_Dataloader_torch' else 'Train')+'.pkl'
+                    dataloader_name=str(parent_dir)+'/Energy_Production_Data/EU_Time_Series/'+dt+'_'+str(nr_timesteps)+'_'+('Transfer_Learn' if dt=='Energy_Data_Dataloader_torch' else 'Train')+'.pkl'
                     print('Current Dataloader: ',dataloader_name,'\n')
 
                     nr_inputs=(15 if 'Energy_Data_Dataloader_torch' in dataloader_name else 19)
@@ -693,7 +707,7 @@ class NAS_Benchmarking():
                                                 'use_amp':False,
                                                 'checkpoints':'./checkpoints/',
                                                 'train_test_split':'Train_Test'+str(1),
-                                                'use_gpu':True,
+                                                'use_gpu':False,
                                                 'subset_indices':self.split_indices[nr_timesteps],
                                                 'search_space':search_space})
 
@@ -705,7 +719,7 @@ class NAS_Benchmarking():
                         nas_results_dict['NASTrain_Energy_Data'][nr_timesteps]['Training_Testing_Time']=avg_tr_test_time
                     else:
                         # nas_results_dict['TL_Total_Load'][nr_timesteps]['Training_Testing_Time']=avg_tr_test_time
-                        nas_results_dict['NASTrain_Energy_Prices'][nr_timesteps]['Training_Testing_Time']=avg_tr_test_time
+                        nas_results_dict['NASTrain_Energy_Prices_Data'][nr_timesteps]['Training_Testing_Time']=avg_tr_test_time
 
                     for subset_idx in range(0,len(self.split_indices[nr_timesteps])):
                         subset_true_values=current_subset_predictions[1][subset_idx]
@@ -717,7 +731,7 @@ class NAS_Benchmarking():
                         else:
                             # nas_results_dict['TL_Total_Load'][nr_timesteps]['Results']['Train_Test'+str(subset_idx+1)]={'Avg_Predictions':subset_predictions,
                             #                                         'True_Values':subset_true_values}
-                            nas_results_dict['NASTrain_Energy_Prices'][nr_timesteps]['Results']['Train_Test'+str(subset_idx+1)]={'Avg_Predictions':subset_predictions,
+                            nas_results_dict['NASTrain_Energy_Prices_Data'][nr_timesteps]['Results']['Train_Test'+str(subset_idx+1)]={'Avg_Predictions':subset_predictions,
                                                                     'True_Values':subset_true_values}
 
 
@@ -735,12 +749,13 @@ class NAS_Benchmarking():
                 pickle.dump(models_results_dict,f)
             
         #Aggregate the results from 10 runs with best dragon models:
-        nas_avg_results_dict={'Dragon_NAS':{'NASTrain_Energy_Data':{48:{'Results':{},
-                                                                        'Training_Testing_Time':None},
-                                                                    96:{'Results':{},
-                                                                        'Training_Testing_Time':None},
-                                                                    192:{'Results':{},
-                                                                        'Training_Testing_Time':None}},
+        nas_avg_results_dict={'Dragon_NAS':{
+                                            # 'NASTrain_Energy_Data':{48:{'Results':{},
+                                            #                             'Training_Testing_Time':None},
+                                            #                         96:{'Results':{},
+                                            #                             'Training_Testing_Time':None},
+                                            #                         192:{'Results':{},
+                                            #                             'Training_Testing_Time':None}},
                                             # 'TL_Total_Load':{48:{'Results':{},
                                             #                     'Training_Testing_Time':None},
                                             #                 96:{'Results':{},
@@ -867,21 +882,22 @@ def MAPE(actual, pred):
 def RMSE(actual, pred):
     return np.sqrt(MSE(actual, pred))
 
-def train_model(model, data_loader, verbose=False):
+def train_model(model, data_loader, verbose=False, device=torch.device('cuda:0')):
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.01)
     model.train()
     for ep in range(20):
         ep_loss = 0
-        for X,y in data_loader:
+        for batch in data_loader:
+            X, y =batch[0], batch[1]
             optimizer.zero_grad()
-            #print('Shape of x inputs: ',X.shape)
+            # print('Shape of x inputs: ',X.shape)
             X, y = X.float().to(device), y.float().to(device)
             if len(X.shape)!=4:
               X=X.unsqueeze(-1)
             pred = model(X)
-            #print('Shape of y outputs: ',y.shape)
-            #print('Shape of pred outputs: ',pred.shape)
+            # print('Shape of y outputs: ',y.shape)
+            # print('Shape of pred outputs: ',pred.shape)
             loss = loss_fn(pred,y)
             loss.backward()
             optimizer.step()
@@ -890,7 +906,7 @@ def train_model(model, data_loader, verbose=False):
             print(f"Train | Epoch: {ep}, loss = {ep_loss / len(data_loader)}")
     return model
 
-def test_model(model, data_loader):
+def test_model(model, data_loader, device=torch.device('cuda:0')):
     loss_fn = nn.MSELoss()
     model.eval()
     test_loss = 0
@@ -900,7 +916,8 @@ def test_model(model, data_loader):
     rmse_array=[]
     
     with torch.no_grad():
-      for X, y in data_loader:
+      for batch in data_loader:
+          X, y = batch[0], batch[1]
           X, y = X.float().to(device), y.float().to(device)
           
           if len(X.shape)!=4:
@@ -983,7 +1000,9 @@ def environment_step(nr_dragon_run,**kwargs):
     
     optimizer_NAS_model = torch.optim.Adam(NAS_model.parameters(), lr=0.001)
 
-    device = _acquire_device(use_gpu=use_gpu)
+    # device = _acquire_device(args=args)
+    device = torch.device('cpu')
+
     NAS_model.to(device)
     
     subset_predictions=[]
@@ -1033,8 +1052,8 @@ def train_NAS_model(NAS_model,optimizer_NAS_model,checkpoints,
     iter_count = 0
     
     path = os.path.join(checkpoints, 'TS_Benchmark_Testing')
-    #if not os.path.exists(path):
-    #    os.makedirs(path)
+    if not os.path.exists(path):
+       os.makedirs(path)
 
     early_stopping = EarlyStopping(patience=patience,delta=0.01,verbose=False)
 
@@ -1132,7 +1151,8 @@ def validate_NAS_model(NAS_model,validation_data,
                     true_values.append(true_batch_values[batch_idx,:,:])
                     predictions.append(batch_predictions[batch_idx,:,:])  
     if mse_array!=None and smape_array!=None:
-        return np.mean((np.array(mse_array)+np.array(smape_array))/2)
+        # return np.mean((np.array(mse_array)+np.array(smape_array))/2)
+        return np.mean(np.array(mse_array))
     else:
         return np.array(true_values),np.array(predictions) 
 

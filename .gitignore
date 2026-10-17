@@ -1,6 +1,7 @@
 # do not clone checkpoints
 .ipynb_checkpoints/
 .venv/
+".venv vopy"/
 .venv3.11/
 wsl-setup.txt
 .env
@@ -15,4 +16,12 @@ logs
 __pycache__/
 *.pkl
 !Results_Evaluation/**/*.pkl
+!Src/**/*.pkl
 results/
+epftoolbox
+.checkpoints/
+*.pth
+save_dragon48
+save_dragon96
+save_dragon192
+old
