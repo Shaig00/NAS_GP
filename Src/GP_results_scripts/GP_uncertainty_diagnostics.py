@@ -30,9 +30,9 @@ from scipy import stats
 PARENT = Path.cwd().parent
 RESULTS_DIR = PARENT / "Results_Evaluation"
 
-TAG = "shared"
+TAG = "per_channel"
 NAME = "ensemble"              # or "tree_0", ...
-SEQ_LEN = 192
+SEQ_LEN = 48
 RUN = 1
 
 NOMINAL = (0.5, 0.8, 0.9, 0.95, 0.99)

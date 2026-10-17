@@ -216,6 +216,8 @@ def channel_names(frame):
     return [c.split(' ')[0] for c in frame.columns if c not in ('Subset', 'date')]
 # ---------------------------------------------------------------------------
 def main():
+
+    # run over 3 seeds
     for seed in range(0,3):
         torch.manual_seed(int(seed))
         np.random.seed(int(seed))
