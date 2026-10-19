@@ -151,7 +151,7 @@ For Results, TOPSIS, and DM tests:
 ├── README.md
 ├── requirements.txt                    -- required libraries
 ├── Energy_Data                         -- ENTSO-E day-ahead prices, 19 markets
-├── Neural_Architecture_Search          -- the search framework; defines the
+├── Neural_Architecture_Search          -- the search framework: defines the
 │                                          Framework class used by run_NAS
 ├── run_NAS
 │   ├── run_NAS_GED.py                  -- runs the tree-structured search
