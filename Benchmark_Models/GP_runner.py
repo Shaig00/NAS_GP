@@ -22,7 +22,6 @@ Leak safety per split, unchanged: the GP is fitted on blocks strictly before
 the validation block, calibrated on the validation block, and evaluated on the
 current block, which is strictly after both.
 
-    python gp_runner.py
 """
 import sys
 sys.path.append("..")
@@ -219,7 +218,7 @@ if __name__ == '__main__':
 
     # the method, everything
     run_many(timesteps=(48, 96, 192), runs=(1,), per_tree=False, ensemble=True)
-    # run_many(timesteps=(48, 96, 192), runs=(1,), per_tree=True, ensemble=False)
+    run_many(timesteps=(48, 96, 192), runs=(1,), per_tree=True, ensemble=False)
 
     # the ablation: one tail index for every market
     # run_many(timesteps=(48,96,192), runs=(1,), per_tree=False, calib_mode='shared')

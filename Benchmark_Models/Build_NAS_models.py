@@ -1,10 +1,10 @@
-from Neural_Architecture_Search.Framework_adj_lr_noskip import Custom_Torch_Model, TSMixer_ResBlock, MTSMixer_Model, Patching_Block, Dnonlinear_Model, create_args
+from Neural_Architecture_Search.Framework import Custom_Torch_Model, TSMixer_ResBlock, MTSMixer_Model, Patching_Block, Dnonlinear_Model, create_args
 # from Benchmark_Models. import 
 import numpy as np
 import  torch
 import torch.nn as nn
 
-from Neural_Architecture_Search.Framework_linear import Custom_Torch_Model as Custom_Chain_Model
+from Neural_Architecture_Search.Framework_chain import Custom_Torch_Model as Custom_Chain_Model
 
 def default_build_model_fn(tree_config, nr_inputs, nr_outputs, seq_len, pred_len, tau = 1.0, routing_mode='timestep'):
     """Build a Custom_Torch_Model (the NAS tree) from a sampled config dict.

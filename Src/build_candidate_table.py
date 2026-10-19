@@ -4,20 +4,13 @@ Build a flat one-row-per-architecture table from a NAS sampling history.
 Usage
 -----
     df_tree  = build_table('Results_Evaluation/WV_GED_NAS_Sampling_History.pkl', 'tree')
-    df_chain = build_table('.../chain_history.pkl', 'chain')
+    df_chain = build_table('.../history_dict.pkl', 'chain')
     df = pd.concat([df_tree, df_chain], ignore_index=True)
-
-For the chain run, first check the config keys match what this script expects:
-
-    inspect('.../chain_history.pkl')
 
 Notes
 -----
-* Score is r1 + r2.  GED is NOT in it -- it is carried as a column instead.
-* wv is reported unfloored; the search code clamps accuracy + wv at zero, which
-  matters only in the lower tail.
-* Lengths are asserted rather than truncated with min(), so a short GED array
-  raises instead of silently mispairing.
+* Score is r1 + r2
+
 """
 
 import pickle
@@ -192,13 +185,10 @@ def truncate(df, n_episodes=1000):
 
 
 if __name__ == '__main__':
-    # df = build_table(str(parent_dir)+'/results/WV_GED_NAS_Sampling_History_8_999_linear.pkl', 'tree', exclude_reward=6.0)
-    # df.to_parquet('nas_candidates_linear.parquet')
-    # summarise(df)
-    # print('\nwrote nas_candidates.parquet')
+
 
     df_tree  = build_table(str(parent_dir)+'/Results_Evaluation/WV_GED_NAS_Sampling_History.pkl', 'tree')
-    df_chain = build_table(str(parent_dir)+'/results/WV_GED_NAS_Sampling_History_8_999_linear.pkl', 'chain', exclude_reward=6.0)
+    df_chain = build_table(str(parent_dir)+'/Results_Evaluation/WV_GED_NAS_Sampling_History_8_999_linear.pkl', 'chain', exclude_reward=6.0)
     df_tree.to_parquet('nas_tree_candidates.parquet')
     df_chain.to_parquet('nas_chain_candidates.parquet')
 

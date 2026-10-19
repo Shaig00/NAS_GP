@@ -451,10 +451,10 @@ class NAS_TopModels_Runner():
                     dt = self.dataloader_names[frame_name_idx]
                     dataloader_name = dt + '_' + str(current_nr_timesteps) + '_' + \
                         ('Transfer_Learn' if dt == 'Energy_Data_Dataloader_torch' else 'Train') + '.pkl'
-                    with open(f'{self.parent_dir}/Energy_Production_Data/EU_Time_Series/{dataloader_name}', 'rb') as f:
+                    with open(f'{self.parent_dir}/Energy_Data/EU_Time_Series/{dataloader_name}', 'rb') as f:
                         current_dataloader = pickle.load(f)
  
-                    with open(f'{self.parent_dir}/Energy_Production_Data/EU_Time_Series/'
+                    with open(f'{self.parent_dir}/Energy_Data/EU_Time_Series/'
                               f'{frame_name}{current_nr_timesteps}_'
                               f'{"Transfer_Learn" if frame_name == "EU_Energy_Time_Series_" else "Train"}.pkl', 'rb') as f:
                         current_eu_energy_frame = pickle.load(f)

@@ -1,24 +1,6 @@
 """
 Bayesian last-layer (GP) head for a trained, frozen, NAS-selected TreeModel.
 
-Changes relative to the previous version
-----------------------------------------
-* Tree forward pass is computed ONCE and cached (the tree is frozen, so the
-  inputs/residuals are identical every epoch).
-* Separate loaders for GP fitting and validation, so out-of-fold residuals can
-  be supplied.  This is the important one: fitting on the tree's own training
-  residuals is the likely cause of the degrading point correction.
-* ARD RBF kernel (one lengthscale per input dimension) with a median-distance
-  initialisation.
-* Outputscale and likelihood noise initialised from the empirical residual
-  variance instead of the GPyTorch default of ~1.0, with an optional noise floor.
-* Per-epoch validation: Gaussian NLL (early-stopping criterion) plus the point
-  diagnostic RMSE(z) vs RMSE(z + mu_r), and the logged task noises.
-* Scalar shrinkage lambda on the correction, fitted in closed form on the
-  validation set and clipped to [0, 1].  lambda = 0 recovers the tree exactly.
-* num_data uses pred_len; bsz no longer shadows the loop variable; num_inducing
-  defaults to 200.
-
 Assumes TreeModel exposes:
     get_pooled_representation(x) -> [batch, seq_len, 4n]
 and has trained attributes output_leaf_projection, pred_len_projection,

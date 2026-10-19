@@ -16,7 +16,7 @@ what DM assumes. At 48h that is 7 origins per split, 105 in total.
 Splits are renumbered by position. AutoGluon starts at 2 and ends short, so
 `stack` intersects the split sets and prints what survived.
 
-Assembly is explicit on purpose -- see __main__.
+Assembly is explicit on purpose: see __main__.
 """
 import pickle
 import numpy as np

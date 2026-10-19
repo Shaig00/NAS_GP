@@ -157,10 +157,10 @@ class NAS_Benchmarking():
                     #Import the datasets based on the number of timesteps to predict:
                     dt=self.dataloader_names[frame_name_idx]
                     dataloader_name=dt+'_'+str(current_nr_timesteps)+'_'+('Transfer_Learn' if dt=='Energy_Data_Dataloader_torch' else 'Train')+'.pkl'
-                    with open(str(parent_dir)+'/Energy_Production_Data/EU_Time_Series/'+dataloader_name,'rb') as f:
+                    with open(str(parent_dir)+'/Energy_Data/EU_Time_Series/'+dataloader_name,'rb') as f:
                         current_dataloader=pickle.load(f)
 
-                    with open(str(parent_dir)+'/Energy_Production_Data/EU_Time_Series/'+frame_name+str(current_nr_timesteps)+'_'+('Transfer_Learn' if frame_name=='EU_Energy_Time_Series_' else 'Train')+'.pkl','rb') as f:
+                    with open(str(parent_dir)+'/Energy_Data/EU_Time_Series/'+frame_name+str(current_nr_timesteps)+'_'+('Transfer_Learn' if frame_name=='EU_Energy_Time_Series_' else 'Train')+'.pkl','rb') as f:
                         current_eu_energy_frame=pickle.load(f) 
 
                     
@@ -260,11 +260,11 @@ class NAS_Benchmarking():
                             #Import the datasets based on the number of timesteps to predict:
                             dt=self.dataloader_names[frame_name_idx]
                             dataloader_name=dt+'_'+str(current_nr_timesteps)+'_'+('Transfer_Learn' if dt=='Energy_Data_Dataloader_torch' else 'Train')+'.pkl'
-                            with open(str(parent_dir)+'/Energy_Production_Data/EU_Time_Series/'+dataloader_name,'rb') as f:
+                            with open(str(parent_dir)+'/Energy_Data/EU_Time_Series/'+dataloader_name,'rb') as f:
                                 current_dataloader=pickle.load(f)
 
                             #Import the datasets based on the number of timesteps to predict:
-                            with open(str(parent_dir)+'/Energy_Production_Data/EU_Time_Series/'+frame_name+str(current_nr_timesteps)+'_'+('Transfer_Learn' if frame_name=='EU_Energy_Time_Series_' else 'Train')+'.pkl','rb') as f:
+                            with open(str(parent_dir)+'/Energy_Data/EU_Time_Series/'+frame_name+str(current_nr_timesteps)+'_'+('Transfer_Learn' if frame_name=='EU_Energy_Time_Series_' else 'Train')+'.pkl','rb') as f:
                                 current_eu_energy_frame=pickle.load(f)
 
                             dataset_dict[idx]={'df':current_eu_energy_frame,
@@ -371,7 +371,7 @@ class NAS_Benchmarking():
                 for ts_frame in ts_frames:
                 
                     #Import relevant sequence-time series_
-                    with open(str(parent_dir)+"/Energy_Production_Data/EU_Time_Series/"+ts_frame+str(seq_len)+'_'+('Transfer_Learn' if ts_frame=='EU_Energy_Time_Series_' else 'Train')+'.pkl','rb') as f:
+                    with open(str(parent_dir)+"/Energy_Data/EU_Time_Series/"+ts_frame+str(seq_len)+'_'+('Transfer_Learn' if ts_frame=='EU_Energy_Time_Series_' else 'Train')+'.pkl','rb') as f:
                         eu_df=pickle.load(f)
 
                     print('Current Time Series Frame: ',ts_frame+str(seq_len)+'_'+('Transfer_Learn' if ts_frame=='EU_Energy_Time_Series_' else 'Train')+'.pkl')
@@ -640,7 +640,7 @@ class NAS_Benchmarking():
             # dataloader_name='EU_Total_Load_Dataloader_torch_'
             dataloader_name='EU_Energy_Prices_Dataloader_torch_'
 
-            with open(str(parent_dir)+'/Energy_Production_Data/EU_Time_Series/'+dataloader_name+str(seq_len)+'_Train.pkl','rb') as f:
+            with open(str(parent_dir)+'/Energy_Data/EU_Time_Series/'+dataloader_name+str(seq_len)+'_Train.pkl','rb') as f:
                 current_dataloader=pickle.load(f)
 
             train_loader=current_dataloader['Train_Test1']['Train_Set_Loader']
@@ -690,7 +690,7 @@ class NAS_Benchmarking():
                 for nr_timesteps in [48,96,192]:
                     client=Client()
                     print(black('Dask Client Dashboard Link: ',['bold']),client.dashboard_link)
-                    dataloader_name=str(parent_dir)+'/Energy_Production_Data/EU_Time_Series/'+dt+'_'+str(nr_timesteps)+'_'+('Transfer_Learn' if dt=='Energy_Data_Dataloader_torch' else 'Train')+'.pkl'
+                    dataloader_name=str(parent_dir)+'/Energy_Data/EU_Time_Series/'+dt+'_'+str(nr_timesteps)+'_'+('Transfer_Learn' if dt=='Energy_Data_Dataloader_torch' else 'Train')+'.pkl'
                     print('Current Dataloader: ',dataloader_name,'\n')
 
                     nr_inputs=(15 if 'Energy_Data_Dataloader_torch' in dataloader_name else 19)

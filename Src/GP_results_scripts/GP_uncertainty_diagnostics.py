@@ -17,7 +17,6 @@ forecast (lambda = 0) and the rescaled standard deviation sqrt(var * scale),
 not the GP's raw variance.  That matters -- before rescaling, the raw variance
 ranks errors slightly WORSE than a per-channel constant does.
 
-    python gp_uncertainty_diagnostics.py
 """
 
 import pickle

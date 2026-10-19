@@ -40,7 +40,7 @@ COUNTRIES = ['Austria', 'Belgium', 'Bulgaria', 'Croatia', 'Czechia', 'Estonia',
 def countries_from_frame(seq_len=96):
     """Read the channel order from the price frame rather than trusting a
     hardcoded list.  Falls back to COUNTRIES if the frame is not present."""
-    path = (f'{parent_dir}/Energy_Production_Data/EU_Time_Series/'
+    path = (f'{parent_dir}/Energy_Data/EU_Time_Series/'
             f'EU_Energy_Prices_Time_Series_{seq_len}_Train.pkl')
     try:
         with open(path, 'rb') as f:

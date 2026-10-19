@@ -1,0 +1,33 @@
+Tail statistics, modelling window, nineteen countries
+========================================================================
+
+                excess_kurtosis  regime_excess_kurtosis  low_mean  low_weight  high_mean  high_sd     jb_stat  jb_p  label_swapped
+country                                                                                                                           
+Austria                  17.667                  22.531     0.168       0.041     90.776   49.171  289351.449   0.0          False
+Belgium                   7.465                  10.276     0.369       0.051     80.343   45.348   57921.664   0.0          False
+Bulgaria                 22.538                  25.657     3.068       0.040    108.291   73.227  394224.782   0.0          False
+Croatia                  18.758                  21.207     0.541       0.028    101.636   61.441  270026.388   0.0          False
+Czech republic           17.701                  21.743     0.128       0.035     92.412   50.164  272140.921   0.0          False
+Estonia                   4.902                   6.813     3.709       0.135     93.314   61.451   28886.127   0.0          False
+Finland                   8.589                   7.950     7.422       0.489     69.938   54.387   22476.475   0.0          False
+France                    0.512                   1.881     6.772       0.167     71.021   41.686    1994.149   0.0          False
+Germany                  22.588                  28.264    -0.132       0.050     86.988   51.356  451510.727   0.0          False
+Greece                   21.773                  24.096     0.020       0.025    105.274   61.600  352609.883   0.0          False
+Hungary                  24.994                  26.563     0.103       0.025    105.954   76.250  429368.120   0.0          False
+Latvia                    5.086                   6.822     3.373       0.113     92.882   60.985   29819.265   0.0          False
+Lithuania                 5.125                   6.870     3.374       0.115     92.774   61.147   30141.604   0.0          False
+Netherlands              15.040                  19.425    -0.093       0.049     85.726   49.123  210998.608   0.0          False
+Poland                    7.074                   9.384     0.680       0.036    101.418   47.700   53512.446   0.0          False
+Portugal                 -1.025                  -0.741     1.932       0.185     77.776   41.126     286.045   0.0          False
+Romania                  24.188                  26.868     3.008       0.034    108.846   75.542  433915.137   0.0          False
+Slovakia                 12.758                  14.952     0.196       0.033    100.331   59.173  134323.239   0.0          False
+Spain                    -1.062                  -0.709     1.278       0.196     78.042   41.698     239.172   0.0          False
+
+All kurtosis figures are EXCESS kurtosis (Gaussian = 0), as in the
+earlier notebook, so they compare directly with its values.
+
+mean excess kurtosis, full distribution : 12.35
+mean excess kurtosis, operating regime  : 14.73
+Jarque-Bera rejects normality at 0.001  : 19 of 19
+
+countries where component 1 was NOT the operating regime: none

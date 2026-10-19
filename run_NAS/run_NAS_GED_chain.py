@@ -1,7 +1,7 @@
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
-from Neural_Architecture_Search.Framework_linear import NAS_Framework
+from Neural_Architecture_Search.Framework_chain import NAS_Framework
 
 if __name__ == '__main__':
     nas_framework = NAS_Framework(embedding_dimension=100,

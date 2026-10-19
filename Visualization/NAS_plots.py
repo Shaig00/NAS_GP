@@ -1,4 +1,5 @@
-"""Figures for Section 5.1. Each function takes the candidate table and returns a fig.
+"""
+    Figures for Section 5.1. Each function takes the candidate table and returns a fig.
 
     from nas_figures import block_frequency, score_distribution, penalised_share
 
@@ -178,18 +179,21 @@ def truncate(df, n_episodes=1000):
 
 
 if __name__=='__main__':
+    
     import pandas as pd
     df_tree_full = pd.read_parquet('nas_tree_candidates.parquet')
     df = pd.concat([truncate(df_tree_full), pd.read_parquet('nas_chain_candidates.parquet')], ignore_index=True)
-    # print(df_tree_full[['score_r1wv', 'score']].round(3))
+
+
     long = node_long(df)
-    leaves = long[(long.nr_nodes == 3) & (long.depth == 0)]
+    leaves = long[(long.nr_nodes == 3) & (long.depth == 1)]
     block_frequency(df, position='root_module')#.savefig('fig_leaf_frequency.pdf')
     print(depth_frequency(long, nr_nodes=3, depth=0))
 
 
 
-    # block_frequency(df, position='leaf_modules').savefig('fig_block_frequency_leaf.pdf')
-    # score_distribution(df).savefig('fig_score_distribution.pdf')
-    # penalised_share(df).savefig('fig_penalised_share.pdf')
-    # search_progress(df_tree_full, score='score', verbose=True).savefig('fig_search_progress.pdf')   # tree only, 1,313
+    block_frequency(df, position='leaf_modules').savefig('fig_block_frequency_leaf.pdf')
+
+    score_distribution(df).savefig('fig_score_distribution.pdf')
+    penalised_share(df).savefig('fig_penalised_share.pdf')
+    search_progress(df_tree_full, score='score', verbose=True).savefig('fig_search_progress.pdf')   # tree only, 1,313

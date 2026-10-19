@@ -127,10 +127,10 @@ class Data_Preprocessing():
         for current_country in EU_countries:
             
             #Load different enegry time series:
-            current_country_df_2023=pd.read_csv('../Energy_Production_Data/EU_Time_Series/'+current_country+'_Generation_per_Production_Type_2023.csv',sep=',')
+            current_country_df_2023=pd.read_csv('../Energy_Data/EU_Time_Series/'+current_country+'_Generation_per_Production_Type_2023.csv',sep=',')
             current_country_df_2023.columns=[col.replace('  - ',' - ') for col in current_country_df_2023.columns]
-            current_country_df_2024=pd.read_csv('../Energy_Production_Data/EU_Time_Series/'+current_country+'_Generation_per_Production_Type_2024.csv',sep=',')
-            current_country_df_2025=pd.read_csv('../Energy_Production_Data/EU_Time_Series/'+current_country+'_Generation_per_Production_Type_2025.csv',sep=',')
+            current_country_df_2024=pd.read_csv('../Energy_Data/EU_Time_Series/'+current_country+'_Generation_per_Production_Type_2024.csv',sep=',')
+            current_country_df_2025=pd.read_csv('../Energy_Data/EU_Time_Series/'+current_country+'_Generation_per_Production_Type_2025.csv',sep=',')
             
             current_country_df=pd.concat([current_country_df_2023,
                                         current_country_df_2024,
@@ -184,9 +184,9 @@ class Data_Preprocessing():
         total_load_eu_dfs=[]
         for current_country in EU_countries:
             #Load electricity total load time series:
-            total_load_df=pd.concat([pd.read_csv('../Energy_Production_Data/EU_Time_Series/'+current_country+'_Total_Load_2023.csv',sep=','),
-                                    pd.read_csv('../Energy_Production_Data/EU_Time_Series/'+current_country+'_Total_Load_2024.csv',sep=','),
-                                    pd.read_csv('../Energy_Production_Data/EU_Time_Series/'+current_country+'_Total_Load_2025.csv',sep=',')],axis=0)
+            total_load_df=pd.concat([pd.read_csv('../Energy_Data/EU_Time_Series/'+current_country+'_Total_Load_2023.csv',sep=','),
+                                    pd.read_csv('../Energy_Data/EU_Time_Series/'+current_country+'_Total_Load_2024.csv',sep=','),
+                                    pd.read_csv('../Energy_Data/EU_Time_Series/'+current_country+'_Total_Load_2025.csv',sep=',')],axis=0)
  
             #Format columns and
             #Select a set of time series for the current country:
@@ -274,9 +274,9 @@ class Data_Preprocessing():
         energy_prices_eu_dfs=[]
         for current_country in EU_countries:
             #Load electricity total load time series:
-            energy_prices_df=pd.concat([pd.read_csv('../Energy_Production_Data/EU_Energy_Prices/'+current_country+'_ENERGY_PRICES_2023.csv',sep=','),
-                                    pd.read_csv('../Energy_Production_Data/EU_Energy_Prices/'+current_country+'_ENERGY_PRICES_2024.csv',sep=','),
-                                    pd.read_csv('../Energy_Production_Data/EU_Energy_Prices/'+current_country+'_ENERGY_PRICES_2025.csv',sep=',')],axis=0)
+            energy_prices_df=pd.concat([pd.read_csv('../Energy_Data/EU_Energy_Prices/'+current_country+'_ENERGY_PRICES_2023.csv',sep=','),
+                                    pd.read_csv('../Energy_Data/EU_Energy_Prices/'+current_country+'_ENERGY_PRICES_2024.csv',sep=','),
+                                    pd.read_csv('../Energy_Data/EU_Energy_Prices/'+current_country+'_ENERGY_PRICES_2025.csv',sep=',')],axis=0)
 
             #Format columns and
             #Select a set of time series for the current country:
@@ -328,8 +328,8 @@ class Data_Preprocessing():
                '2025-04-02 04:00:00', '2025-04-14 23:00:00','2025-04-16 02:00:00', '2025-04-23 06:00:00','2025-04-24 05:00:00']
 
 
-        # frames=[self.train_data_frame, self.exg_data_frame]
-        frames = [self.exg_data_frame]
+        frames=[self.train_data_frame]
+        # frames = [self.exg_data_frame]
         
         for frame_idx in range(0,len(frames)):
 
@@ -354,7 +354,7 @@ class Data_Preprocessing():
                 #Append Subsets column:
                 current_frame['Subset']=np.array(subsets)
                 
-                #Filter out rows with 0s:
+                # Filter out rows with 0s:
                 # if frame_idx==1:
                 #     current_frame=current_frame[(current_frame.index!=drop_indices_transfer_frame[0])&(current_frame.index!=drop_indices_transfer_frame[1])&
                 #                                                 (current_frame.index!=drop_indices_transfer_frame[2])&(current_frame.index!=drop_indices_transfer_frame[3])&
@@ -370,15 +370,15 @@ class Data_Preprocessing():
                 
                 #Save the timestep dataframes:
                 if frame_idx==0:
-                    with open('../Energy_Production_Data/EU_Time_Series/EU_Total_Load_Time_Series_'+str(current_nr_timesteps)+'_Train.pkl','wb') as f:
+                    with open('../Energy_Data/EU_Time_Series/EU_Total_Load_Time_Series_'+str(current_nr_timesteps)+'_Train.pkl','wb') as f:
                         pickle.dump(current_frame,f)
                     
                 # elif frame_idx==0 and self.eu_total_load_frame is not None:
-                #     with open('../Energy_Production_Data/EU_Time_Series/EU_Energy_Time_Series_'+str(current_nr_timesteps)+'_Transfer_Learn.pkl','wb') as f:
+                #     with open('../Energy_Data/EU_Time_Series/EU_Energy_Time_Series_'+str(current_nr_timesteps)+'_Transfer_Learn.pkl','wb') as f:
                 #         pickle.dump(current_frame,f)
-                # elif frame_idx==0:# and self.eu_energy_prices_frame is not None:
-                #     with open('../Energy_Production_Data/EU_Time_Series/EU_Energy_Prices_Time_Series_'+str(current_nr_timesteps)+'_Train.pkl','wb') as f:
-                #         pickle.dump(current_frame,f)
+                elif frame_idx==0:# and self.eu_energy_prices_frame is not None:
+                    with open('../Energy_Data/EU_Time_Series/EU_Energy_Prices_Time_Series_'+str(current_nr_timesteps)+'_Train.pkl','wb') as f:
+                        pickle.dump(current_frame,f)
     
     @ignore_warnings
     def get_timestamp_data(self,df)->pd.DataFrame:
@@ -463,7 +463,7 @@ class Data_Preprocessing():
             len_denominator=len(current_subset) - seq_len - pred_len + 1
             norm_index = index_list / len_denominator
             
-            inputs_for_dataloader.append([seq_x, seq_y,seq_x_mark,seq_y_mark,norm_index]) # this is added after ? does not make sense
+            inputs_for_dataloader.append([seq_x, seq_y,seq_x_mark,seq_y_mark,norm_index])
             
         #Save in dataloader:
         current_dataloader=torch.utils.data.DataLoader(inputs_for_dataloader,batch_size=batch_size,shuffle=False)
@@ -484,9 +484,9 @@ class Data_Preprocessing():
 
             
             frame_names=[
-                '../Energy_Production_Data/EU_Time_Series/EU_Total_Load_Time_Series_'+str(seq_len)+'_Train.pkl',
-                        # '../Energy_Production_Data/EU_Time_Series/EU_Energy_Time_Series_'+str(seq_len)+'_Transfer_Learn.pkl',
-                        # '../Energy_Production_Data/EU_Time_Series/EU_Energy_Prices_Time_Series_'+str(seq_len)+'_Train.pkl'
+                        '../Energy_Data/EU_Time_Series/EU_Energy_Prices_Time_Series_'+str(seq_len)+'_Train.pkl'
+                        # '../Energy_Data/EU_Time_Series/EU_Energy_Time_Series_'+str(seq_len)+'_Transfer_Learn.pkl',
+                        # '../Energy_Data/EU_Time_Series/EU_Total_Load_Time_Series_'+str(seq_len)+'_Train.pkl',
                         ]
             
             dataloaders=[]
@@ -541,17 +541,17 @@ class Data_Preprocessing():
                 dataloaders.append(dataloaders_dict)
                 
                 
-            #at index 0: 'EU_Total_Load_Dataloader_torch_'+str(seq_len)+'.pkl'
-            with open('../Energy_Production_Data/EU_Time_Series/EU_Total_Load_Dataloader_torch_'+str(seq_len)+'_Train.pkl','wb') as f:
-                pickle.dump(dataloaders[0],f)
-
-            # #at index 1: 'Energy_Data_Dataloader_torch_'+str(seq_len)+'.pkl'
-            # with open('../Energy_Production_Data/EU_Time_Series/Energy_Data_Dataloader_torch_'+str(seq_len)+'_Transfer_Learn.pkl','wb') as f:
+            # #at index 0: 'EU_Total_Load_Dataloader_torch_'+str(seq_len)+'.pkl'
+            # with open('../Energy_Data/EU_Time_Series/EU_Total_Load_Dataloader_torch_'+str(seq_len)+'_Train.pkl','wb') as f:
             #     pickle.dump(dataloaders[0],f)
 
-            # #at index 2: 'EU_Energy_Prices_Dataloader_torch_'+str(seq_len)+'.pkl'
-            # with open('../Energy_Production_Data/EU_Time_Series/EU_Energy_Prices_Dataloader_torch_'+str(seq_len)+'_Train.pkl','wb') as f:
-            #     pickle.dump(dataloaders[1],f)
+            # #at index 1: 'Energy_Data_Dataloader_torch_'+str(seq_len)+'.pkl'
+            # with open('../Energy_Data/EU_Time_Series/Energy_Data_Dataloader_torch_'+str(seq_len)+'_Transfer_Learn.pkl','wb') as f:
+            #     pickle.dump(dataloaders[0],f)
+
+            #at index 2: 'EU_Energy_Prices_Dataloader_torch_'+str(seq_len)+'.pkl'
+            with open('../Energy_Data/EU_Time_Series/EU_Energy_Prices_Dataloader_torch_'+str(seq_len)+'_Train.pkl','wb') as f:
+                pickle.dump(dataloaders[1],f)
 
 
 

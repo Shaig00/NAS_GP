@@ -1,13 +1,12 @@
 """
-The three Section 5.3 figures, from the stored diagnostics.  Nothing is
-recomputed -- every number here was already saved by GP_uncertainty_diagnostics
+The three Section 5.3 figures, from the stored diagnostics.
+Every number here was already saved by GP_uncertainty_diagnostics
 and GP_results_aggregate.
 
     fig_pit.pdf             PIT under the deployed Student-t and under a Gaussian
     fig_nu_by_market.pdf    fitted tail index by market, log scale
     fig_sparsification.pdf  model, oracle and random orderings
 
-    python make_section53_figures.py
 """
 
 import pickle

@@ -16,7 +16,6 @@ Four nested feature sets, fitted on earlier blocks, scored on later ones:
 Reads stored point forecasts; nothing is trained.  Set MEMBERS to one tree for
 a single architecture, or to all ten for the ensemble.
 
-    python residual_magnitude_regression.py
 """
 
 import pickle
@@ -43,7 +42,7 @@ RIDGE_ALPHAS = (1.0, 10.0, 100.0)
 
 PARENT = Path.cwd().parent
 RESULTS_DIR = PARENT / "Results_Evaluation"
-DATA_DIR = PARENT / "Energy_Production_Data" / "EU_Time_Series"
+DATA_DIR = PARENT / "Energy_Data" / "EU_Time_Series"
 
 # rows of the rolling train window and of each test block, per setting.
 # Hardcoding one horizon's values silently misaligns the others.
