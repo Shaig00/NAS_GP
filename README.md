@@ -103,13 +103,13 @@ pip install -r requirements.txt
 5. Read requirements.txt to install relevant packages for benchmarking
 
 
-4. Data must be processed  with [Run_Baseline_Models](Src/Run_Baseline_Models.ipynb)from .csv files into torch DataLoader.
+4. Data must be processed  with [Run_Baseline_Models](Src/Run_Baseline_Models.ipynb) from .csv files into torch DataLoader.
 
 ## Reproducing results
 
 The pipeline has five stages and each should map to one entry point:
 1. data preparation  
-2. architecture search (both arms, per horizon)
+2. architecture search (both arms)
 3. candidate selection (top ten architectures per arm)
 4. walk-forward benchmarking (point forecasts + residual bank)
 5. calibration and evaluation (GP head --> calibration)
